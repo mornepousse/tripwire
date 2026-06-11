@@ -74,6 +74,56 @@ printf '#!/usr/bin/env bash\nexit 1\n' > build.sh
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast vert (build cassé)" 0 $?
 ./scripts/check.sh >/dev/null 2>&1;                    chk "full rouge (build cassé)" 1 $?
 
+# ===== Multi-variantes =====
+MULTI="$TMP/multi"
+mkdir -p "$MULTI/scripts/hooks"
+cd "$MULTI"
+git init -q -b main
+printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh && chmod +x fast.sh
+cat > build.sh <<'EOF'
+#!/usr/bin/env bash
+[ "${1:-}" = "bad" ] && exit 1
+exit 0
+EOF
+chmod +x build.sh
+
+sed -e 's|{{PROJECT_NAME}}|toy-multi|g' \
+    -e 's|{{VARIANTS_SPACE_SEPARATED}}|v1 v2|g' \
+    -e 's|{{FAST_CMD}}|./fast.sh|g' \
+    -e 's|{{VARIANT_BUILD_CMD}}|./build.sh "$v"|g' \
+    "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check.sh
+
+sed -e 's#{{VARIANT_STATE_BLOCK}}#VARIANT="$(cat .tripwire-variant 2>/dev/null || true)"; VARIANT="${VARIANT:-v1}"#' \
+    -e '/{{ENV_SETUP_BLOCK}}/d' \
+    -e 's|{{ENV_AVAILABLE_TEST}}|true|g' \
+    -e 's|{{STOP_CHECK_ARGS}}|--variant "$VARIANT"|g' \
+    -e 's|{{STOP_CHECK_DESC}}|variant $VARIANT|g' \
+    "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" > scripts/hooks/cc_stop.sh
+chmod +x scripts/check.sh scripts/hooks/cc_stop.sh
+echo v1 > .tripwire-variant
+
+bash -n scripts/check.sh && bash -n scripts/hooks/cc_stop.sh
+chk "bash -n multi" 0 $?
+if grep -Fn '{{' scripts/ >/dev/null 2>&1; then echo "✗ placeholders résiduels (multi)"; fails=1; else echo "✓ pas de placeholder résiduel (multi)"; fi
+./scripts/check.sh >/dev/null 2>&1;                    chk "multi full vert" 0 $?
+./scripts/check.sh --variant v1 >/dev/null 2>&1;       chk "multi --variant v1 vert" 0 $?
+scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "multi stop hook vert (variant courant)" 0 $?
+
+# v2 cassé : full rouge mais TOUTES les variantes tentées ; v1 isolé reste vert
+sed -i 's|"bad"|"v2"|' build.sh
+OUT="$(./scripts/check.sh 2>&1)"; rc=$?
+chk "multi full rouge (v2 cassé)" 1 $rc
+echo "$OUT" | grep -q "Build v1 OK" && echo "$OUT" | grep -qF "Build v2: échec"
+chk "toutes les variantes tentées" 0 $?
+./scripts/check.sh --variant v1 >/dev/null 2>&1;       chk "multi --variant v1 vert (v2 cassé)" 0 $?
+
+# garde stop_hook_active : même tripwire rouge, ne re-bloque pas (anti-boucle)
+printf '#!/usr/bin/env bash\nexit 1\n' > fast.sh
+printf '{"stop_hook_active": true}' | scripts/hooks/cc_stop.sh >/dev/null 2>&1
+chk "garde stop_hook_active -> rc 0" 0 $?
+printf '{}' | scripts/hooks/cc_stop.sh >/dev/null 2>&1
+chk "stop rouge sans garde -> rc 2" 2 $?
+
 echo "----------------------------------------"
 if [ "$fails" -eq 0 ]; then echo "E2E: tout vert"; else echo "E2E: ROUGE"; fi
 exit "$fails"
