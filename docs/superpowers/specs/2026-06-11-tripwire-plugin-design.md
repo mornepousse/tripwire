@@ -31,14 +31,20 @@ Corollaires :
 Un plugin Claude Code nommé `tripwire` :
 - **Repo local** : `~/Documents/GitHub/tripwire`
 - **Remote** : `gitlab.com/harrael/tripwire` (push après création)
-- **Installation** : `claude plugin marketplace add ~/Documents/GitHub/tripwire`
-  (marketplace locale), puis install du plugin.
+- **Installation** : le repo est sa propre marketplace via
+  `.claude-plugin/marketplace.json` (entrée unique, `source: "./"`). Puis :
+  ```bash
+  claude plugin marketplace add ~/Documents/GitHub/tripwire
+  claude plugin install tripwire@tripwire
+  ```
 
 ## Structure du plugin
 
 ```
 tripwire/
-├── .claude-plugin/plugin.json
+├── .claude-plugin/
+│   ├── plugin.json            # manifest (name, version, description, author)
+│   └── marketplace.json       # self-marketplace : liste le plugin avec source "./"
 ├── README.md
 ├── skills/
 │   ├── init/                  # /tripwire:init — scaffolde le pipeline dans un repo
@@ -51,7 +57,7 @@ tripwire/
 │   │       ├── cc_stop.sh.tmpl
 │   │       ├── settings.json.tmpl
 │   │       └── claude-md-section.md.tmpl
-│   ├── agents/                # /tripwire:agents — génère les agents spécialisés
+│   ├── gen-agents/            # /tripwire:gen-agents — génère les agents spécialisés
 │   │   ├── SKILL.md
 │   │   └── templates/
 │   │       ├── test-author.md.tmpl
@@ -61,6 +67,10 @@ tripwire/
 │       └── SKILL.md
 └── docs/superpowers/specs/    # ce document
 ```
+
+Note : pas de dossier `skills/agents/` — ce nom collisionne avec le dossier
+composant réservé `agents/` (subagents) à la racine d'un plugin, d'où
+`gen-agents`.
 
 Les templates utilisent des placeholders `{{NOM}}` que la skill remplit en
 suivant les instructions du SKILL.md (génération par Claude, pas par un
@@ -129,7 +139,7 @@ Chaque échec affiche la commande de relance manuelle pour le détail
   l'env n'est pas disponible, retombe sur `--fast` au lieu de bloquer
   chaque Stop, avec message explicite.
 
-## Skill `/tripwire:agents`
+## Skill `/tripwire:gen-agents`
 
 Génère dans `.claude/agents/` du projet cible 3 squelettes spécialisés à
 partir du contexte du repo (la skill lit le CLAUDE.md et la structure) :
