@@ -26,10 +26,13 @@ cible pour les runs suivants.
 1. **Déterminer la version** : lire `git describe --tags` ; proposer le bump
    (patch/minor/major) via AskUserQuestion si l'utilisateur n'a pas donné de
    version explicite.
+   Si `git describe --tags` échoue (aucun tag existant — première release),
+   proposer `v0.1.0` comme premier tag.
 2. **Pré-flight** :
    ```bash
    git status --porcelain        # doit être vide
    ./scripts/check.sh            # doit être VERT (full)
+   test -f VERSION && echo "ATTENTION: fichier VERSION présent — source de version ambiguë" || true
    ```
    Rouge → STOP, diagnostiquer, ne pas tagger.
 3. **Tag + push** :
@@ -37,15 +40,23 @@ cible pour les runs suivants.
    git tag vX.Y.Z
    git push && git push --tags
    ```
-4. **Build des artefacts** : commandes de la section Release du CLAUDE.md
-   cible. Vérifier que chaque artefact attendu existe.
+   En cas d'échec du build à l'étape 4 : ne pas laisser un tag orphelin —
+   `git push origin :refs/tags/vX.Y.Z && git tag -d vX.Y.Z`, corriger, recommencer.
+4. **Build des artefacts** : lire la section `## Release` du `CLAUDE.md` cible
+   pour obtenir les commandes de build et les globs d'artefacts, puis les exécuter.
+   Vérifier que chaque artefact attendu existe.
 5. **Créer la release** — détecter le forge via `git remote get-url origin` :
-   - contient `gitlab` → `glab release create vX.Y.Z <artefacts...>`
-   - contient `github` → `gh release create vX.Y.Z <artefacts...>`
+   Vérifier d'abord que le CLI est installé (`command -v glab` / `command -v gh`) ;
+   sinon, traiter comme le cas "autre".
+   - contient `gitlab` → `glab release create vX.Y.Z <fichiers...> --notes "<notes>"`
+     (fichiers en arguments positionnels = upload direct)
+   - contient `github` → `gh release create vX.Y.Z <fichiers...> --notes "<notes>"`
    - autre → donner les fichiers et laisser l'utilisateur publier.
 6. **Récap** : version, artefacts, URL de la release.
 
 ## Notes de release
 
-Générer les notes depuis `git log <tag précédent>..HEAD --oneline`, groupées
+Générer les notes depuis
+`git log "$(git describe --tags --abbrev=0 HEAD^)"..HEAD --oneline`
+(le tag précédent ; pour une première release, prendre tout l'historique), groupées
 par type (feat/fix/docs/…). Les proposer à l'utilisateur avant publication.
