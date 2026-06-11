@@ -45,11 +45,13 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
 2. **Variantes** — liste de cibles de build (équivalent boards/features/targets),
    ou « aucune » (mono-cible). Si variantes : demander la commande de build
    paramétrée par `$v` et la variante par défaut (pour `.tripwire-variant`).
+   Si aucune variante : demander/confirmer quand même la commande de build complet — elle alimente `{{VARIANT_BUILD_CMD}}` (le mode full mono-cible = fast + ce build). Même contrainte que la commande fast : pas de substitution `$(...)`.
 3. **Chemins surveillés** — répertoires dont l'édition déclenche le hook
    PostToolUse (ex. `src/`, `tests/`). Convertir en patterns `case` :
    `src/` → `*"/src/"*`.
 4. **Setup d'environnement** — commande à sourcer avant un build
    (ex. `source ~/esp/esp-idf/export.sh`), ou « aucun ».
+   Si un setup existe, demander aussi comment tester que l'env est chargé (ex. variable exportée : `[ -n "${IDF_PATH:-}" ]`) — c'est la valeur de `{{ENV_AVAILABLE_TEST}}`. Sans setup : `true`.
 
 ## Étape 3 — Génération
 
@@ -76,7 +78,7 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | `{{VARIANTS_SPACE_SEPARATED}}` | `v1 v2 …` ; **vide** si mono-cible |
 | `{{VARIANT_BUILD_CMD}}` | commande de build, peut utiliser `$v` |
 | `{{VARIANT_LIST_DESC}}` | ex. « les 3 variantes » / « le build complet » |
-| `{{DEFAULT_VARIANT}}` | variante par défaut (multi uniquement) |
+| `{{DEFAULT_VARIANT}}` | variante par défaut (multi uniquement) (consommé dans la construction de `{{VARIANT_STATE_BLOCK}}`, n'apparaît littéralement dans aucun template) |
 | `{{ENV_SETUP_BLOCK}}` | bloc shell de setup d'env ; **supprimer la ligne** si aucun |
 | `{{ENV_AVAILABLE_TEST}}` | test shell de dispo de l'env ; `true` si aucun |
 | `{{VARIANT_STATE_BLOCK}}` | deux lignes : `VARIANT="$(cat .tripwire-variant 2>/dev/null \|\| true)"` puis `VARIANT="${VARIANT:-<défaut>}"` (robuste au fichier vide) ; **supprimer la ligne** si mono |
@@ -87,7 +89,7 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 
 ### Adaptations mono-cible
 - `ALL_VARIANTS=()` vide ; le mode `--variant` reste dans check.sh (inerte, ne pas le retirer).
-- Dans la section CLAUDE.md : supprimer la ligne `--variant` et la mention `.tripwire-variant`.
+- Dans la section CLAUDE.md : supprimer la ligne `--variant`, supprimer la mention `.tripwire-variant`, et reformuler la puce Stop en "check complet".
 - Pas de fichier `.tripwire-variant`.
 
 ### Multi-variantes
@@ -101,6 +103,7 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
   et `Stop` du template aux tableaux existants (créer les clés si absentes).
   Ne JAMAIS supprimer ou modifier les hooks existants. Vérifier le résultat
   avec `jq .` avant d'écrire.
+- Idempotence du merge : si une entrée `command` pointant sur `scripts/hooks/cc_post_edit.sh` ou `cc_stop.sh` existe déjà, ne pas la dupliquer.
 
 ### Section CLAUDE.md
 - `CLAUDE.md` absent → le créer avec un titre `# <projet> — Claude Code
@@ -113,10 +116,15 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 ```bash
 command -v python3   # requis par les hooks Claude Code (parsing JSON) — avertir si absent
 bash -n scripts/check.sh scripts/hooks/*.sh scripts/hooks/pre-push scripts/install-hooks.sh
+# Aucun placeholder résiduel ne doit rester :
+grep -rn '{{' scripts/ .claude/settings.json CLAUDE.md && echo "PLACEHOLDERS RESTANTS — corriger avant de conclure" || true
 ./scripts/install-hooks.sh
+test -x scripts/hooks/pre-push
 git config --get core.hooksPath    # doit afficher scripts/hooks
 ./scripts/check.sh --fast          # doit être VERT
-echo '{"tool_input":{"file_path":"'$PWD'/<un chemin surveillé>/x"}}' | scripts/hooks/cc_post_edit.sh; echo "rc=$?"   # rc=0 attendu (vert)
+# Hook PostToolUse : un chemin surveillé (doit durer ~ la commande fast) puis un non surveillé (retour immédiat)
+echo '{"tool_input":{"file_path":"'$PWD'/<chemin surveillé>/x"}}' | scripts/hooks/cc_post_edit.sh; echo "rc=$?"   # rc=0
+echo '{"tool_input":{"file_path":"'$PWD'/UNWATCHED.md"}}' | scripts/hooks/cc_post_edit.sh; echo "rc=$?"          # rc=0, immédiat
 ```
 
 Si `check.sh --fast` est rouge : diagnostiquer avec l'utilisateur (commande
