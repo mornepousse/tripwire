@@ -13,6 +13,10 @@ templates de `templates/` : `test-author`, `code-reviewer`, `debugger`.
 1. **Demander** (AskUserQuestion, multiSelect) lesquels générer (défaut : les 3).
 2. **Collecter le contexte** — lire le `CLAUDE.md` cible et la structure du
    repo pour remplir :
+   - Vérifier d'abord que `scripts/check.sh` existe dans le repo cible ;
+     sinon proposer `/tripwire:init` d'abord, ou remplacer la commande de
+     vérification dans les corps générés par la vraie commande de test du
+     projet.
    - `{{PROJ}}` : slug court (ex. `kase`, demander si ambigu) ;
    - `{{PROJECT_NAME}}` : nom complet du projet (ex. `KaSe_firmware`) ;
    - `{{PROJECT_CONTEXT}}` : 3-6 lignes — stack, structure des dossiers,
@@ -28,6 +32,8 @@ templates de `templates/` : `test-author`, `code-reviewer`, `debugger`.
    Ne pas écraser un agent existant sans accord explicite.
 4. **Vérifier** : frontmatter présent (`name`, `description` avec exemples),
    placeholders tous remplis (`grep -n '{{' .claude/agents/<proj>-*.md` ne
-   doit rien retourner).
+   doit rien retourner) ; et valider le YAML du frontmatter de chaque agent
+   généré : `python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]).read().split('---')[1])" <fichier>`
+   — la description doit rester une chaîne double-quotée sur une seule ligne.
 5. **Rappeler** : les agents sont disponibles à la prochaine session, et la
    section « Quand invoquer les agents » peut être ajoutée au CLAUDE.md cible.

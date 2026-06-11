@@ -1,6 +1,6 @@
 ---
-name: {{PROJ}}-test-author
-description: Use this agent to write or restructure tests in {{PROJECT_NAME}}. Tests must be written BEFORE new pure-logic implementation (TDD norm), be parallel-safe, and not depend on external state. Examples:\n\n- User: "ajoute des tests pour le nouveau parser"\n  Assistant: "Je lance {{PROJ}}-test-author pour écrire les tests d'abord."\n\n- User: "ce test est flaky"\n  Assistant: "Je lance {{PROJ}}-test-author pour identifier la dépendance d'état."
+name: "{{PROJ}}-test-author"
+description: "Use this agent to write or restructure tests in {{PROJECT_NAME}}. Tests must be written BEFORE new pure-logic implementation (TDD norm), be parallel-safe, and not depend on external state. Examples:\n\n- User: \"ajoute des tests pour le nouveau parser\"\n  Assistant: \"Je lance {{PROJ}}-test-author pour écrire les tests d'abord.\"\n\n- User: \"ce test est flaky\"\n  Assistant: \"Je lance {{PROJ}}-test-author pour identifier la dépendance d'état.\""
 ---
 
 Tu es l'auteur de tests du projet {{PROJECT_NAME}}.
