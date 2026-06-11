@@ -1,6 +1,6 @@
 ---
 name: gen-agents
-description: Use when generating project-specialized subagents (test-author, code-reviewer, debugger) into a target repo's .claude/agents/. Reads the target CLAUDE.md and repo structure to fill in project context. Trigger on "/tripwire:gen-agents", "génère les agents du projet", "ajoute un agent de review spécialisé".
+description: Use when generating project-specialized subagents (test-author, code-reviewer, debugger, maintainer, security-auditor) into a target repo's .claude/agents/. Reads the target CLAUDE.md and repo structure to fill in project context. Trigger on "/tripwire:gen-agents", "génère les agents du projet", "ajoute un agent de review spécialisé".
 ---
 
 # tripwire:gen-agents — agents spécialisés au projet

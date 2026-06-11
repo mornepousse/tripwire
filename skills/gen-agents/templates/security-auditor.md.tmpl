@@ -15,8 +15,9 @@ d'état, opérations privilégiées sans contrôle d'accès.
 {{ATTACK_SURFACE}}
 
 ## Méthode
-1. Énumérer les points d'entrée depuis `{{ATTACK_SURFACE}}`. Si la liste
-   est absente, la reconstruire en lisant les fichiers de handling d'input.
+1. Énumérer les points d'entrée depuis la section « Surface d'attaque »
+   ci-dessus. Si elle semble incomplète, la compléter en lisant les
+   fichiers de handling d'input.
 2. Pour chaque handler, tracer le chemin de la donnée entrante jusqu'à
    son utilisation : validation de taille/type/bornes avant usage, rejet
    explicite des inputs malformés (pas de « parse au mieux »).

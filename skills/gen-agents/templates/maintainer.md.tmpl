@@ -22,8 +22,8 @@ les migrations de bibliothèques, et les changements de build system.
 3. Vérifier le lockfile généré : versions attendues, pas de downgrade
    involontaire, contraintes respectées.
 4. Après tout changement de dépendance ou d'infrastructure, lancer
-   `./scripts/check.sh` (full, pas --fast) pour valider que tous les
-   variants buildent correctement.
+   `./scripts/check.sh` (full, pas --fast) pour valider que le build
+   complet passe (toutes les variantes, le cas échéant).
 5. Documenter l'impact dans le commit : breaking changes, changements
    d'API, besoin de ré-initialisation ou de migration de données.
 6. Si la mise à jour nécessite des changements de code métier, les

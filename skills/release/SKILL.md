@@ -1,6 +1,6 @@
 ---
 name: release
-description: Use when cutting a release in a tripwire-enabled project — git tag vX.Y.Z as single version source, full check.sh must be green, build artifacts, create GitLab/GitHub release. Trigger on "/tripwire:release", "prépare une release", "cut une release", "publie vX.Y.Z".
+description: Use when cutting a release in a tripwire-enabled project — git tag vX.Y.Z as single version source, full check.sh must be green, manual smoke-test checklist walked before tagging, build artifacts, create GitLab/GitHub release. Trigger on "/tripwire:release", "prépare une release", "cut une release", "publie vX.Y.Z".
 ---
 
 # tripwire:release — workflow de release générique
@@ -46,8 +46,10 @@ section, checklist sous-section `### Smoke test`).
    un item peut être coché, échoué, ou sauté avec raison).
    - Un item **échoué** → STOP, pas de tag.
    - Tous les items sautés → demander confirmation explicite avant de continuer.
-   - Sous-section absente (projet pré-v0.2 ou "aucune") → proposer d'en créer une,
-     accepter "aucune".
+   - Sous-section absente (projet pré-v0.2) → proposer d'en créer une ; si la
+     réponse est "aucune", persister `Aucune (décision explicite)` dans la
+     sous-section pour ne plus reposer la question.
+   - Sous-section contenant `Aucune (décision explicite)` → passer silencieusement.
 4. **Tag + push** :
    ```bash
    git tag vX.Y.Z
