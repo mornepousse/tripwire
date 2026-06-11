@@ -1,0 +1,23 @@
+## Workflow anti-régression (OBLIGATOIRE)
+
+Source unique de vérité : `scripts/check.sh`.
+- `./scripts/check.sh --fast` — {{FAST_DESC}} (~secondes)
+- `./scripts/check.sh --variant <name>` — fast + build d'une variante
+- `./scripts/check.sh` — fast + {{VARIANT_LIST_DESC}}
+
+**Activation des hooks git (une fois par clone)** :
+```bash
+./scripts/install-hooks.sh   # ou: git config core.hooksPath scripts/hooks
+```
+`pre-push` lance le check complet et bloque le push si rouge. WIP : `git push --no-verify`.
+
+**Hooks Claude Code** (`.claude/settings.json`, automatiques) :
+- `PostToolUse` sur édition d'un fichier surveillé → `check.sh --fast`.
+- `Stop` → check du variant courant (lu dans `.tripwire-variant`). Si l'env de
+  build n'est pas disponible, dégrade en `--fast` seul.
+- Changer de variante courante : `echo <variante> > .tripwire-variant`.
+
+### Norme TDD — nouvelle logique pure
+Toute nouvelle fonction de logique pure ({{TDD_SCOPE}}) : test écrit **d'abord**,
+ajouté à la suite de tests de la phase rapide. Le test doit être rouge avant
+l'implémentation, vert après, et parallel-safe (pas d'état global muté).

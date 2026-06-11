@@ -1,0 +1,14 @@
+{
+  "name": "tripwire",
+  "owner": {
+    "name": "Mae PUGIN"
+  },
+  "plugins": [
+    {
+      "name": "tripwire",
+      "description": "Pipeline anti-régression réutilisable : check.sh + hooks git + hooks Claude Code + section CLAUDE.md + agents + release.",
+      "source": "./",
+      "version": "0.1.0"
+    }
+  ]
+}

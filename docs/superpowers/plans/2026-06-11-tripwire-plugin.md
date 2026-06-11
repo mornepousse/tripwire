@@ -468,6 +468,9 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
 ## Étape 2 — Questions (AskUserQuestion, une à la fois)
 
 1. **Commande fast** — boucle courte, cible < 30 s. Proposer le défaut détecté.
+   Contrainte : la commande doit être relançable telle quelle depuis la racine
+   du repo et ne pas contenir de substitution `$(...)` (elle est ré-affichée
+   dans les messages d'échec). Les `cd` internes sont OK (exécution en subshell).
 2. **Variantes** — liste de cibles de build (équivalent boards/features/targets),
    ou « aucune » (mono-cible). Si variantes : demander la commande de build
    paramétrée par `$v` et la variante par défaut (pour `.tripwire-variant`).
@@ -505,7 +508,7 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | `{{DEFAULT_VARIANT}}` | variante par défaut (multi uniquement) |
 | `{{ENV_SETUP_BLOCK}}` | bloc shell de setup d'env ; **supprimer la ligne** si aucun |
 | `{{ENV_AVAILABLE_TEST}}` | test shell de dispo de l'env ; `true` si aucun |
-| `{{VARIANT_STATE_BLOCK}}` | `VARIANT="$(cat .tripwire-variant 2>/dev/null \|\| echo <défaut>)"` ; **supprimer la ligne** si mono |
+| `{{VARIANT_STATE_BLOCK}}` | deux lignes : `VARIANT="$(cat .tripwire-variant 2>/dev/null \|\| true)"` puis `VARIANT="${VARIANT:-<défaut>}"` (robuste au fichier vide) ; **supprimer la ligne** si mono |
 | `{{STOP_CHECK_ARGS}}` | `--variant "$VARIANT"` (multi) ; vide (mono) |
 | `{{STOP_CHECK_DESC}}` | `variant $VARIANT` (multi) ; `complet` (mono) |
 | `{{WATCHED_PATH_PATTERNS}}` | patterns `case` séparés par `\|` |
@@ -537,6 +540,7 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 ## Étape 4 — Validation (OBLIGATOIRE avant de conclure)
 
 ```bash
+command -v python3   # requis par les hooks Claude Code (parsing JSON) — avertir si absent
 bash -n scripts/check.sh scripts/hooks/*.sh scripts/hooks/pre-push scripts/install-hooks.sh
 ./scripts/install-hooks.sh
 git config --get core.hooksPath    # doit afficher scripts/hooks
@@ -828,6 +832,17 @@ chk() { local desc="$1" want="$2" got="$3"
 
 # Aucun placeholder résiduel
 if grep -rn '{{' scripts/ >/dev/null; then echo "✗ placeholders résiduels"; fails=1; else echo "✓ pas de placeholder résiduel"; fi
+
+# Frontmatters des templates gen-agents : structurellement valides
+# (name/description double-quotés sur une ligne — pas de dépendance pyyaml)
+for a in test-author code-reviewer debugger; do
+  F="$PLUGIN/skills/gen-agents/templates/$a.md.tmpl"
+  if awk '/^---$/{c++} c==1 && /^name: "/{n=1} c==1 && /^description: "/ && /"$/{d=1} END{exit !(n&&d)}' "$F"; then
+    echo "✓ frontmatter $a"
+  else
+    echo "✗ frontmatter $a (name/description non quotés sur une ligne)"; fails=1
+  fi
+done
 
 # Vert : fast, full, stop hook, post-edit (fichier surveillé + non surveillé)
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast vert" 0 $?
