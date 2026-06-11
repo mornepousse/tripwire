@@ -12,14 +12,20 @@ description: Use when cutting a release in a tripwire-enabled project — git ta
 2. **`./scripts/check.sh` complet VERT obligatoire avant de tagger.**
    Pas d'exception, pas de `--no-verify` sur une release.
 3. Working tree propre (`git status` clean) avant de tagger.
+4. Le smoke test manuel (s'il est défini) se déroule AVANT le tag — un humain a vu
+   le produit fonctionner, pas seulement le build passer.
 
 ## Première utilisation sur un projet
 
 Si le CLAUDE.md cible n'a pas de section « Release », demander :
 - commande(s) de build des artefacts (et leurs chemins de sortie) ;
-- artefacts à attacher à la release (globs).
+- artefacts à attacher à la release (globs) ;
+- une **checklist smoke-test** : 3 à 8 vérifications manuelles du produit réel
+  (lancer l'app et tester les flux critiques, flasher et tester le matériel,
+  exécuter les commandes principales…), ou "aucune" explicitement.
 Puis **persister** ces réponses dans une section `## Release` du CLAUDE.md
-cible pour les runs suivants.
+cible pour les runs suivants (commandes de build et artefacts au niveau de la
+section, checklist sous-section `### Smoke test`).
 
 ## Workflow
 
@@ -35,24 +41,31 @@ cible pour les runs suivants.
    test -f VERSION && echo "ATTENTION: fichier VERSION présent — source de version ambiguë" || true
    ```
    Rouge → STOP, diagnostiquer, ne pas tagger.
-3. **Tag + push** :
+3. **Smoke test manuel** : lire la sous-section `### Smoke test` du `## Release`
+   du CLAUDE.md cible. La dérouler item par item avec l'utilisateur (AskUserQuestion —
+   un item peut être coché, échoué, ou sauté avec raison).
+   - Un item **échoué** → STOP, pas de tag.
+   - Tous les items sautés → demander confirmation explicite avant de continuer.
+   - Sous-section absente (projet pré-v0.2 ou "aucune") → proposer d'en créer une,
+     accepter "aucune".
+4. **Tag + push** :
    ```bash
    git tag vX.Y.Z
    git push && git push --tags
    ```
-   En cas d'échec du build à l'étape 4 : ne pas laisser un tag orphelin —
+   En cas d'échec du build à l'étape 5 : ne pas laisser un tag orphelin —
    `git push origin :refs/tags/vX.Y.Z && git tag -d vX.Y.Z`, corriger, recommencer.
-4. **Build des artefacts** : lire la section `## Release` du `CLAUDE.md` cible
+5. **Build des artefacts** : lire la section `## Release` du `CLAUDE.md` cible
    pour obtenir les commandes de build et les globs d'artefacts, puis les exécuter.
    Vérifier que chaque artefact attendu existe.
-5. **Créer la release** — détecter le forge via `git remote get-url origin` :
+6. **Créer la release** — détecter le forge via `git remote get-url origin` :
    Vérifier d'abord que le CLI est installé (`command -v glab` / `command -v gh`) ;
    sinon, traiter comme le cas "autre".
    - contient `gitlab` → `glab release create vX.Y.Z <fichiers...> --notes "<notes>"`
      (fichiers en arguments positionnels = upload direct)
    - contient `github` → `gh release create vX.Y.Z <fichiers...> --notes "<notes>"`
    - autre → donner les fichiers et laisser l'utilisateur publier.
-6. **Récap** : version, artefacts, URL de la release.
+7. **Récap** : version, artefacts, URL de la release.
 
 ## Notes de release
 
