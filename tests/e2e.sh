@@ -38,7 +38,7 @@ if grep -rn '{{' scripts/ >/dev/null; then echo "✗ placeholders résiduels"; f
 
 # Frontmatters des templates gen-agents : structurellement valides
 # (name/description double-quotés sur une ligne — pas de dépendance pyyaml)
-for a in test-author code-reviewer debugger; do
+for a in test-author code-reviewer debugger maintainer security-auditor; do
   F="$PLUGIN/skills/gen-agents/templates/$a.md.tmpl"
   if awk '/^---$/{c++} c==1 && /^name: "/{n=1} c==1 && /^description: "/ && /"$/{d=1} END{exit !(n&&d)}' "$F"; then
     echo "✓ frontmatter $a"
