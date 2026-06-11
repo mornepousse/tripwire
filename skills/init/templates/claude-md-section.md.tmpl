@@ -15,6 +15,7 @@ Source unique de vérité : `scripts/check.sh`.
 - `PostToolUse` sur édition d'un fichier surveillé → `check.sh --fast`.
 - `Stop` → check du variant courant (lu dans `.tripwire-variant`). Si l'env de
   build n'est pas disponible, dégrade en `--fast` seul.
+- Changer de variante courante : `echo <variante> > .tripwire-variant`.
 
 ### Norme TDD — nouvelle logique pure
 Toute nouvelle fonction de logique pure ({{TDD_SCOPE}}) : test écrit **d'abord**,

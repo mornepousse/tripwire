@@ -124,6 +124,24 @@ chk "garde stop_hook_active -> rc 0" 0 $?
 printf '{}' | scripts/hooks/cc_stop.sh >/dev/null 2>&1
 chk "stop rouge sans garde -> rc 2" 2 $?
 
+# Dégradation : env de build indisponible -> --fast seul, build sauté
+sed -e 's#{{VARIANT_STATE_BLOCK}}#VARIANT="$(cat .tripwire-variant 2>/dev/null || true)"; VARIANT="${VARIANT:-v1}"#' \
+    -e '/{{ENV_SETUP_BLOCK}}/d' \
+    -e 's|{{ENV_AVAILABLE_TEST}}|false|g' \
+    -e 's|{{STOP_CHECK_ARGS}}|--variant "$VARIANT"|g' \
+    -e 's|{{STOP_CHECK_DESC}}|variant $VARIANT|g' \
+    "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" > scripts/hooks/cc_stop_degraded.sh
+chmod +x scripts/hooks/cc_stop_degraded.sh
+printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh   # fast vert, v2 toujours cassé
+echo v2 > .tripwire-variant
+printf '{}' | scripts/hooks/cc_stop.sh >/dev/null 2>&1
+chk "stop env dispo + variant v2 cassé -> rc 2" 2 $?
+printf '{}' | scripts/hooks/cc_stop_degraded.sh >/dev/null 2>&1
+chk "stop dégradé (env absent) -> fast seul, rc 0" 0 $?
+printf '#!/usr/bin/env bash\nexit 1\n' > fast.sh
+printf '{}' | scripts/hooks/cc_stop_degraded.sh >/dev/null 2>&1
+chk "stop dégradé + fast rouge -> rc 2" 2 $?
+
 echo "----------------------------------------"
 if [ "$fails" -eq 0 ]; then echo "E2E: tout vert"; else echo "E2E: ROUGE"; fi
 exit "$fails"
