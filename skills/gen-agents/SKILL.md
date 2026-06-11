@@ -33,7 +33,10 @@ templates de `templates/` : `test-author`, `code-reviewer`, `debugger`.
 4. **Vérifier** : frontmatter présent (`name`, `description` avec exemples),
    placeholders tous remplis (`grep -n '{{' .claude/agents/<proj>-*.md` ne
    doit rien retourner) ; et valider le YAML du frontmatter de chaque agent
-   généré : `python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]).read().split('---')[1])" <fichier>`
-   — la description doit rester une chaîne double-quotée sur une seule ligne.
+   généré — si pyyaml est disponible :
+   `python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]).read().split('---')[1])" <fichier>` ;
+   sinon vérifier structurellement que `name:` et `description:` sont des
+   chaînes **double-quotées sur une seule ligne** (quotes internes échappées
+   `\"`, exemples encodés avec des `\n` littéraux), comme dans les templates.
 5. **Rappeler** : les agents sont disponibles à la prochaine session, et la
    section « Quand invoquer les agents » peut être ajoutée au CLAUDE.md cible.

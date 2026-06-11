@@ -833,6 +833,17 @@ chk() { local desc="$1" want="$2" got="$3"
 # Aucun placeholder résiduel
 if grep -rn '{{' scripts/ >/dev/null; then echo "✗ placeholders résiduels"; fails=1; else echo "✓ pas de placeholder résiduel"; fi
 
+# Frontmatters des templates gen-agents : structurellement valides
+# (name/description double-quotés sur une ligne — pas de dépendance pyyaml)
+for a in test-author code-reviewer debugger; do
+  F="$PLUGIN/skills/gen-agents/templates/$a.md.tmpl"
+  if awk '/^---$/{c++} c==1 && /^name: "/{n=1} c==1 && /^description: "/ && /"$/{d=1} END{exit !(n&&d)}' "$F"; then
+    echo "✓ frontmatter $a"
+  else
+    echo "✗ frontmatter $a (name/description non quotés sur une ligne)"; fails=1
+  fi
+done
+
 # Vert : fast, full, stop hook, post-edit (fichier surveillé + non surveillé)
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast vert" 0 $?
 ./scripts/check.sh >/dev/null 2>&1;                    chk "full vert" 0 $?
