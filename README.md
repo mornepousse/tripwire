@@ -17,7 +17,11 @@ Extrait du workflow du projet KaSe_firmware.
 ## Installation
 
 ```bash
-claude plugin marketplace add ~/Documents/GitHub/tripwire   # ou l'URL GitLab
+# Depuis GitLab :
+claude plugin marketplace add https://gitlab.com/harrael/tripwire
+# Ou depuis un clone local :
+claude plugin marketplace add ~/Documents/GitHub/tripwire
+
 claude plugin install tripwire@tripwire
 ```
 
