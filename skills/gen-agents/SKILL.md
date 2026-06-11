@@ -1,16 +1,19 @@
 ---
 name: gen-agents
-description: Use when generating project-specialized subagents (test-author, code-reviewer, debugger) into a target repo's .claude/agents/. Reads the target CLAUDE.md and repo structure to fill in project context. Trigger on "/tripwire:gen-agents", "génère les agents du projet", "ajoute un agent de review spécialisé".
+description: Use when generating project-specialized subagents (test-author, code-reviewer, debugger, maintainer, security-auditor) into a target repo's .claude/agents/. Reads the target CLAUDE.md and repo structure to fill in project context. Trigger on "/tripwire:gen-agents", "génère les agents du projet", "ajoute un agent de review spécialisé".
 ---
 
 # tripwire:gen-agents — agents spécialisés au projet
 
-Génère dans `.claude/agents/` du repo cible jusqu'à 3 agents à partir des
-templates de `templates/` : `test-author`, `code-reviewer`, `debugger`.
+Génère dans `.claude/agents/` du repo cible jusqu'à 5 agents à partir des
+templates de `templates/` : `test-author`, `code-reviewer`, `debugger`,
+`maintainer`, `security-auditor`.
 
 ## Workflow
 
-1. **Demander** (AskUserQuestion, multiSelect) lesquels générer (défaut : les 3).
+1. **Demander** (AskUserQuestion, multiSelect) lesquels générer (défaut : les 3
+   de base : `test-author`, `code-reviewer`, `debugger` ; `maintainer` et
+   `security-auditor` proposés en option).
 2. **Collecter le contexte** — lire le `CLAUDE.md` cible et la structure du
    repo pour remplir :
    - Vérifier d'abord que `scripts/check.sh` existe dans le repo cible ;
@@ -25,7 +28,15 @@ templates de `templates/` : `test-author`, `code-reviewer`, `debugger`.
      contraintes (parallel-safe, mocks…) ;
    - `{{REVIEW_CHECKLIST}}` : extraire les conventions du CLAUDE.md en liste
      vérifiable (ex. « pas de malloc dans les hot paths ») ;
-   - `{{BUILD_DEBUG_CMDS}}` : commandes de build/log/diagnostic du projet.
+   - `{{BUILD_DEBUG_CMDS}}` : commandes de build/log/diagnostic du projet ;
+   - `{{DEPS_INFRA}}` : lister les fichiers de deps/lock et préoccupations
+     d'infra du repo cible (ex. `idf_component.yml + dependencies.lock,
+     partitions.csv…` pour KaSe, `Cargo.toml + Cargo.lock` pour Rust) ;
+   - `{{ATTACK_SURFACE}}` : lister les points d'entrée d'inputs externes,
+     selon la nature du projet — embedded : protocoles série/radio, OTA ;
+     desktop/CLI : fichiers importés, IPC, arguments, presse-papier ;
+     web/mobile : endpoints API, deep links / URL schemes, formulaires,
+     storage local, désérialisation JSON. Si non évident, poser la question.
    Si le CLAUDE.md cible est pauvre, poser 1-2 questions ciblées plutôt
    qu'inventer.
 3. **Générer** `.claude/agents/<proj>-<role>.md` pour chaque agent choisi.
