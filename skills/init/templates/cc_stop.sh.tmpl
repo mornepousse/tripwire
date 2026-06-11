@@ -3,7 +3,10 @@
 # Dégradation: env de build absent -> --fast au lieu de bloquer chaque Stop.
 set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$REPO"
+cd "$REPO" || exit 1
+# Anti-boucle : si on est déjà dans une continuation de Stop hook, ne pas re-bloquer.
+IN="$(cat 2>/dev/null || true)"
+printf '%s' "$IN" | python3 -c 'import sys,json; sys.exit(0 if json.load(sys.stdin).get("stop_hook_active") else 1)' 2>/dev/null && exit 0
 {{VARIANT_STATE_BLOCK}}
 {{ENV_SETUP_BLOCK}}
 if {{ENV_AVAILABLE_TEST}}; then

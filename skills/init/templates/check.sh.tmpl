@@ -12,7 +12,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-cd "$PROJECT_DIR"
+cd "$PROJECT_DIR" || exit 1
 
 # Variantes de build. Laisser vide pour un projet mono-cible.
 ALL_VARIANTS=({{VARIANTS_SPACE_SEPARATED}})
@@ -35,7 +35,7 @@ esac
 # ---- Phase rapide (boucle courte, cible < 30 s) ----
 run_fast() {
   info "Phase rapide…"
-  if {{FAST_CMD}} >/dev/null 2>&1; then
+  if ( {{FAST_CMD}} ) >/dev/null 2>&1; then
     ok "Phase rapide OK"
     return 0
   else
@@ -50,7 +50,7 @@ run_fast() {
 build_variant() {
   local v="$1"
   info "Build ${v:-complet}…"
-  if {{VARIANT_BUILD_CMD}} >/dev/null 2>&1; then
+  if ( {{VARIANT_BUILD_CMD}} ) >/dev/null 2>&1; then
     ok "Build ${v:-complet} OK"
     return 0
   else
