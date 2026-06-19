@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "onEdit": [
+      {
+        "matcher": "*",
+        "command": "$VIBE_PROJECT_DIR/scripts/hooks/vibe_post_edit.sh"
+      }
+    ],
+    "onWrite": [
+      {
+        "matcher": "*",
+        "command": "$VIBE_PROJECT_DIR/scripts/hooks/vibe_post_edit.sh"
+      }
+    ],
+    "onStop": [
+      {
+        "command": "$VIBE_PROJECT_DIR/scripts/hooks/vibe_stop.sh",
+        "timeout": 600
+      }
+    ]
+  }
+}

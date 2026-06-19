@@ -1,0 +1,17 @@
+{
+  "name": "tripwire",
+  "version": "0.2.0",
+  "description": "Scaffolde un pipeline anti-régression : check.sh + hooks git + hooks (Claude Code/Mistral Vibe) + section config + agents + release. Extrait du workflow KaSe_firmware.",
+  "author": {
+    "name": "Mae PUGIN"
+  },
+  "repository": "https://gitlab.com/harrael/tripwire",
+  "license": "MIT",
+  "keywords": [
+    "ci",
+    "hooks",
+    "tdd",
+    "anti-regression",
+    "scaffolding"
+  ]
+}

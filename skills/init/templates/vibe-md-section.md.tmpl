@@ -1,0 +1,51 @@
+## Workflow anti-régression (tripwire)
+
+Ce projet utilise **tripwire** pour maintenir la qualité du code.
+
+### L'invariant
+
+> Un seul script (`scripts/check.sh`) définit ce que « vert » veut dire.
+> Chaque garde-fou (hook git, hook Mistral Vibe, CI) ne fait que l'appeler
+> avec un mode adapté à son budget temps.
+
+### Commandes
+
+| Commande | Description | Temps estimé |
+|---|---|---|
+| `./scripts/check.sh --fast` | Boucle courte : {{FAST_DESC}} | < 30 s |
+| `./scripts/check.sh --variant <name>` | Check d'une variante spécifique | Variable |
+| `./scripts/check.sh` | Full : {{VARIANT_LIST_DESC}} | Plusieurs minutes |
+
+### Activation
+
+Les hooks sont **activés automatiquement** :
+- Après chaque édition surveillée (fichiers dans {{WATCHED_PATH_PATTERNS}}) → `check.sh --fast`
+- Avant de conclure une session → check du variant courant
+- Pré-push git → `check.sh` complet
+
+### Dégradation gracieuse
+
+Si l'environnement de build est absent, le hook onStop retombe sur `--fast` au lieu de bloquer.
+
+### Utilisation
+
+```bash
+# Installer les hooks git (à lancer sur chaque nouveau clone)
+./scripts/install-hooks.sh
+
+# Changer de variante (multi-variantes seulement)
+echo <nom-variante> > .tripwire-variant
+
+# Lancer manuellement
+./scripts/check.sh --fast          # test rapide
+./scripts/check.sh                 # full check
+./scripts/check.sh --variant v1   # check d'une variante
+```
+
+### Norme TDD
+
+**Règle du projet** : toute logique pure (sans effets de bord) doit avoir un test écrit **avant** l'implémentation.
+
+Concerne : {{TDD_SCOPE}}
+
+Ne pas merger de code {{TDD_SCOPE}} sans test correspondant.
