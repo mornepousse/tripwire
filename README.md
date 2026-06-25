@@ -14,6 +14,23 @@ Extrait du workflow du projet KaSe_firmware.
 - `check.sh` — full : fast + toutes les variantes (pre-push, CI)
 - Dégradation gracieuse : env de build absent → retombe sur `--fast` au lieu de bloquer
 
+## Tokens & rtk (optionnel)
+
+tripwire est déjà frugal en tokens par design : `check.sh` exécute tests et
+builds en `>/dev/null` (seul le code de retour compte), et les hooks ne
+renvoient à l'assistant qu'un résumé tronqué en cas de rouge. Aucune sortie
+verbeuse n'entre dans le contexte via le pipeline lui-même.
+
+Le seul moment verbeux est volontaire : quand `check.sh` est rouge, il invite
+à relancer la commande pour le détail (`relance pour le détail : <cmd>`). Ce
+re-run est une commande shell normale — si vous utilisez [rtk](https://github.com/rtk-ai/rtk)
+(proxy qui compresse les sorties de 60-90 %) en interception globale, ce détail
+est compressé automatiquement, sans que tripwire ait à s'en occuper.
+
+Autrement dit : **aucune intégration n'est nécessaire.** tripwire reste
+sans dépendance et portable ; rtk, s'il est présent, agit sur la seule étape
+qui en bénéficie.
+
 ## Installation
 
 ### Pour Claude Code
