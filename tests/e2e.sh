@@ -5,6 +5,7 @@ set -uo pipefail
 PLUGIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+export TRIPWIRE_DEBOUNCE=0   # les tests enchaînent les hooks plus vite que le debounce réel
 cd "$TMP"
 git init -q -b main
 
@@ -16,6 +17,7 @@ printf '#!/usr/bin/env bash\nexit 0\n' > build.sh && chmod +x build.sh
 sed -e 's|{{PROJECT_NAME}}|toy|g' \
     -e 's|{{TRIPWIRE_VERSION}}|v9.9.9|g' \
     -e 's|{{VARIANTS_SPACE_SEPARATED}}||g' \
+    -e 's|{{MODULE_FAST_ENTRIES}}||g' \
     -e 's|{{FAST_CMD}}|./fast.sh|g' \
     -e 's|{{VARIANT_BUILD_CMD}}|./build.sh|g' \
     "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check.sh
@@ -90,6 +92,65 @@ OUT="$(echo '{}' | scripts/hooks/cc_session_start.sh 2>/dev/null)"; rc=$?
 chk "session-start idempotent (rc)" 0 $rc
 chk "session-start idempotent (silencieux)" "" "$OUT"
 
+# ===== Options gros projets =====
+# Skip-si-déjà-vert : même état -> skip ; --force relance ; état modifié -> re-run
+./scripts/check.sh --fast >/dev/null 2>&1                       # stampe l'état courant
+OUT="$(./scripts/check.sh --fast 2>&1)"; rc=$?
+chk "skip état inchangé (rc)" 0 $rc
+echo "$OUT" | grep -q "skip"; chk "skip état inchangé (message)" 0 $?
+OUT="$(./scripts/check.sh --fast --force 2>&1)"
+echo "$OUT" | grep -q "Phase rapide OK"; chk "--force relance vraiment" 0 $?
+touch src/nouveau.c                                             # empreinte différente
+OUT="$(./scripts/check.sh --fast 2>&1)"
+echo "$OUT" | grep -q "Phase rapide OK"; chk "état modifié -> re-run" 0 $?
+
+# Garde-budget : dépassement -> avertissement non fatal
+OUT="$(TRIPWIRE_FAST_BUDGET=-1 ./scripts/check.sh --fast --force 2>&1)"; rc=$?
+chk "budget dépassé: rc reste 0" 0 $rc
+echo "$OUT" | grep -q "budget"; chk "budget dépassé: avertissement émis" 0 $?
+
+# Verrou : un check en cours -> le second sort poliment (rc 0, pas de double run)
+if command -v flock >/dev/null 2>&1; then
+  ( flock -x 9; sleep 2 ) 9>.git/tripwire/lock &
+  LOCKPID=$!
+  sleep 0.3
+  OUT="$(./scripts/check.sh --fast --force 2>&1)"; rc=$?
+  chk "verrou: second check sort (rc)" 0 $rc
+  echo "$OUT" | grep -q "en cours"; chk "verrou: message skip" 0 $?
+  wait "$LOCKPID"
+else
+  echo "~ flock absent — test verrou sauté"
+fi
+
+# Scoping module : --changed route la phase rapide sur le module touché
+mkdir -p modA
+printf '#!/usr/bin/env bash\ntouch modA.ran\nexit 0\n' > modA.sh && chmod +x modA.sh
+sed -e 's|{{PROJECT_NAME}}|toy|g' \
+    -e 's|{{TRIPWIRE_VERSION}}|v9.9.9|g' \
+    -e 's|{{VARIANTS_SPACE_SEPARATED}}||g' \
+    -e 's#{{MODULE_FAST_ENTRIES}}#"*/modA/*:./modA.sh"#' \
+    -e 's|{{FAST_CMD}}|./fast.sh|g' \
+    -e 's|{{VARIANT_BUILD_CMD}}|./build.sh|g' \
+    "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check_mod.sh
+chmod +x scripts/check_mod.sh
+rm -f modA.ran
+./scripts/check_mod.sh --fast --changed "$TMP/modA/x.c" --force >/dev/null 2>&1
+chk "module: rc vert" 0 $?
+[ -f modA.ran ]; chk "module: commande du module exécutée" 0 $?
+rm -f modA.ran
+./scripts/check_mod.sh --fast --changed "$TMP/src/a.c" --force >/dev/null 2>&1
+[ -f modA.ran ]; chk "module: hors module -> fast global" 1 $?
+
+# Templates CI : instanciation sans résidu, étages fast/full présents
+sed -e 's|{{CI_IMAGE}}|debian:stable-slim|g' \
+    "$PLUGIN/skills/init/templates/gitlab-ci.yml.tmpl" > ci-gl.yml 2>/dev/null
+sed -e 's|{{DEFAULT_BRANCH}}|main|g' \
+    "$PLUGIN/skills/init/templates/github-actions.yml.tmpl" > ci-gh.yml 2>/dev/null
+grep -q -- "check.sh --fast" ci-gl.yml && grep -q "scripts/check.sh$" ci-gl.yml \
+  && grep -q -- "check.sh --fast" ci-gh.yml && grep -q "scripts/check.sh$" ci-gh.yml \
+  && ! grep -q '{{' ci-gl.yml ci-gh.yml
+chk "templates CI instanciés (étages fast/full, pas de résidu)" 0 $?
+
 # Rouge : casser fast
 printf '#!/usr/bin/env bash\nexit 1\n' > fast.sh
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast rouge -> rc 1" 1 $?
@@ -99,6 +160,14 @@ chk "post-edit rouge -> rc 2" 2 $?
 scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop rouge -> rc 2" 2 $?
 echo '{"file_path":"'"$TMP"'/src/a.c"}' | scripts/hooks/vibe_post_edit.sh >/dev/null 2>&1
 chk "vibe post-edit rouge -> rc 2" 2 $?
+
+# Debounce : sous la fenêtre -> pas de re-check (rc 0 même si rouge dessous)
+echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_DEBOUNCE=999 scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
+chk "debounce: 1er passage seed (rc 2, check réel)" 2 $?
+echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_DEBOUNCE=999 scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
+chk "debounce: 2e passage sous la fenêtre -> rc 0" 0 $?
+echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
+chk "debounce: désactivé (0) -> check réel rc 2" 2 $?
 scripts/hooks/vibe_stop.sh </dev/null >/dev/null 2>&1; chk "vibe stop rouge -> rc 2" 2 $?
 printf '{"stop_hook_active": true}' | scripts/hooks/vibe_stop.sh >/dev/null 2>&1
 chk "vibe garde stop_hook_active -> rc 0" 0 $?
@@ -125,6 +194,7 @@ chmod +x build.sh
 sed -e 's|{{PROJECT_NAME}}|toy-multi|g' \
     -e 's|{{TRIPWIRE_VERSION}}|v9.9.9|g' \
     -e 's|{{VARIANTS_SPACE_SEPARATED}}|v1 v2|g' \
+    -e 's|{{MODULE_FAST_ENTRIES}}||g' \
     -e 's|{{FAST_CMD}}|./fast.sh|g' \
     -e 's|{{VARIANT_BUILD_CMD}}|./build.sh "$v"|g' \
     "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check.sh

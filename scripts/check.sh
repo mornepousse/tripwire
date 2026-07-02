@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
-# tripwire-template: v0.5.0
+# tripwire-template: v0.6.0
 # Tripwire anti-régression tripwire — source unique de vérité du "quoi vérifier".
 # Généré par /tripwire:init. Adapter ICI ; les hooks ne font qu'appeler ce script.
 # Modes:
 #   check.sh                  -> full: phase rapide + toutes les variantes
 #   check.sh --fast           -> phase rapide uniquement (~secondes)
 #   check.sh --variant <name> -> phase rapide + une seule variante
+# Options:
+#   --changed <fichier>       -> (passé par les hooks) route la phase rapide sur le
+#                                module touché si MODULE_FAST est renseigné
+#   --force                   -> ignore le skip-si-déjà-vert (aussi: TRIPWIRE_FORCE=1)
+# Env:
+#   TRIPWIRE_FAST_BUDGET      -> budget de la phase rapide en secondes (défaut 30) ;
+#                                dépassé -> avertissement non fatal
 # Sortie non-zéro si au moins un rouge (toutes les variantes sont tentées en mode full).
-# Conçu pour hooks git/Claude Code + CI.
+# Conçu pour hooks git/plateforme + CI.
 
 set -uo pipefail
 
@@ -18,31 +25,86 @@ cd "$PROJECT_DIR" || exit 1
 # Variantes de build. Laisser vide pour un projet mono-cible.
 ALL_VARIANTS=()
 
+# Modules (monorepo, optionnel) : quand un hook passe --changed <fichier>, la
+# phase rapide est routée sur le premier module dont le glob matche. Sans match
+# ou table vide : phase rapide globale. Format "<glob>:<commande>". Exemple :
+#   MODULE_FAST=( "*/services/api/*:cd services/api && npm test -s" )
+MODULE_FAST=()
+
 RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YEL=$'\033[1;33m'; NC=$'\033[0m'
 fail() { echo "${RED}✗ $*${NC}" >&2; }
 ok()   { echo "${GREEN}✓ $*${NC}"; }
 info() { echo "${YEL}» $*${NC}"; }
 
-MODE="full"
-SINGLE_VARIANT=""
-case "${1:-}" in
-  --fast)    MODE="fast" ;;
-  --variant) MODE="single"; SINGLE_VARIANT="${2:-}";
-             [ -z "$SINGLE_VARIANT" ] && { fail "--variant requires a name"; exit 2; } ;;
-  "" )       MODE="full" ;;
-  *)         fail "unknown arg: $1"; exit 2 ;;
-esac
+MODE="full"; SINGLE_VARIANT=""; CHANGED=""; FORCE="${TRIPWIRE_FORCE:-0}"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --fast)    MODE="fast" ;;
+    --variant) MODE="single"; SINGLE_VARIANT="${2:-}"
+               [ -z "$SINGLE_VARIANT" ] && { fail "--variant requires a name"; exit 2; }
+               shift ;;
+    --changed) CHANGED="${2:-}"; shift ;;
+    --force)   FORCE=1 ;;
+    *)         fail "unknown arg: $1"; exit 2 ;;
+  esac
+  shift
+done
 
-# ---- Phase rapide (boucle courte, cible < 30 s) ----
-run_fast() {
-  info "Phase rapide…"
-  if ( bash tests/lint.sh ) >/dev/null 2>&1; then
-    ok "Phase rapide OK"
-    return 0
-  else
-    fail "Phase rapide: échec (relance pour le détail: bash tests/lint.sh)"
-    return 1
+# ---- Résolution du scope de la phase rapide (module éventuel) ----
+FAST_RUN_CMD="bash tests/lint.sh"; FAST_LABEL="Phase rapide"; SCOPE_KEY=""
+if [ -n "$CHANGED" ]; then
+  for _e in ${MODULE_FAST[@]+"${MODULE_FAST[@]}"}; do
+    case "$CHANGED" in
+      ${_e%%:*}) FAST_RUN_CMD="${_e#*:}"; FAST_LABEL="Module ${_e%%:*}"
+                 SCOPE_KEY="-mod-$(printf '%s' "${_e%%:*}" | git hash-object --stdin 2>/dev/null | cut -c1-8)"
+                 break ;;
+    esac
+  done
+fi
+
+# ---- Verrou : un seul check à la fois (hooks concurrents) ----
+GITDIR="$(git rev-parse --git-dir 2>/dev/null || echo .git)"
+mkdir -p "$GITDIR/tripwire" 2>/dev/null || true
+if command -v flock >/dev/null 2>&1 && [ -d "$GITDIR/tripwire" ]; then
+  exec 9>"$GITDIR/tripwire/lock"
+  if ! flock -n 9 2>/dev/null; then
+    info "un check est déjà en cours — skip (son verdict fera foi)"
+    exit 0
   fi
+fi
+
+# ---- Skip-si-déjà-vert : même état que le dernier vert -> rien à refaire ----
+fingerprint() {
+  {
+    git rev-parse HEAD 2>/dev/null || echo no-head
+    git diff HEAD 2>/dev/null || git diff 2>/dev/null || true
+    git ls-files -o --exclude-standard 2>/dev/null | LC_ALL=C sort \
+      | git hash-object --stdin-paths 2>/dev/null || true
+  } | git hash-object --stdin 2>/dev/null || date +%s.%N
+}
+KEY="$MODE${SINGLE_VARIANT:+-$SINGLE_VARIANT}$SCOPE_KEY"
+STAMP="$GITDIR/tripwire/green-$KEY"
+FP="$(fingerprint)"
+if [ "$FORCE" != "1" ] && [ -f "$STAMP" ] && [ "$(cat "$STAMP" 2>/dev/null)" = "$FP" ]; then
+  ok "déjà vert (état inchangé depuis le dernier passage) — skip (--force pour relancer)"
+  exit 0
+fi
+
+# ---- Phase rapide (boucle courte, budget TRIPWIRE_FAST_BUDGET s) ----
+run_fast() {
+  info "${FAST_LABEL}…"
+  local t0=$SECONDS rc=0
+  if ( eval "$FAST_RUN_CMD" ) >/dev/null 2>&1; then
+    ok "$FAST_LABEL OK"
+  else
+    fail "$FAST_LABEL: échec (relance pour le détail: $FAST_RUN_CMD)"
+    rc=1
+  fi
+  local dt=$((SECONDS - t0)) budget="${TRIPWIRE_FAST_BUDGET:-30}"
+  if [ "$dt" -gt "$budget" ]; then
+    info "⚠ phase rapide: ${dt}s > budget ${budget}s — déplacer des tests vers le check complet ou scoper par module (MODULE_FAST)"
+  fi
+  return "$rc"
 }
 
 # ---- Phase complète ----
@@ -76,6 +138,11 @@ elif [ "$MODE" = "full" ]; then
 fi
 
 echo "========================================"
-if [ "$rc" -eq 0 ]; then ok "check.sh: tout vert"; else fail "check.sh: ROUGE"; fi
+if [ "$rc" -eq 0 ]; then
+  printf '%s\n' "$FP" > "$STAMP" 2>/dev/null || true
+  ok "check.sh: tout vert"
+else
+  fail "check.sh: ROUGE"
+fi
 echo "========================================"
 exit "$rc"

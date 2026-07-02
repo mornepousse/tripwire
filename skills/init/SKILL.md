@@ -51,6 +51,7 @@ Si `scripts/check.sh` existe déjà dans le repo cible :
 | v0.2.0 | base : check.sh, pre-push, install-hooks, hooks post_edit/stop |
 | v0.3.0 | support Mistral Vibe (rien à mettre à jour pour un scaffold Claude Code) |
 | v0.5.0 | + hook SessionStart (`cc_session_start.sh` + entrée `settings.json`) ; tampon `# tripwire-template:` dans check.sh |
+| v0.6.0 | check.sh : skip-si-déjà-vert (`--force`), scoping monorepo (`MODULE_FAST` + `--changed`), verrou flock, garde-budget (`TRIPWIRE_FAST_BUDGET`) ; hooks post-edit : debounce (`TRIPWIRE_DEBOUNCE`) + `--changed` ; templates CI à étages (gitlab/github) |
 
 ## Étape 1 — Détection de stack
 
@@ -83,6 +84,21 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
 4. **Setup d'environnement** — commande à sourcer avant un build
    (ex. `source ~/esp/esp-idf/export.sh`), ou « aucun ».
    Si un setup existe, demander aussi comment tester que l'env est chargé (ex. variable exportée : `[ -n "${IDF_PATH:-}" ]`) — c'est la valeur de `{{ENV_AVAILABLE_TEST}}`. Sans setup : `true`.
+5. **Modules (monorepo, optionnel)** — ne poser la question que si le repo a
+   l'air d'un monorepo (plusieurs sous-projets avec leurs propres manifests) :
+   liste de couples `glob → commande de test du module` pour router la phase
+   rapide sur le module touché. Sinon : table vide (`{{MODULE_FAST_ENTRIES}}`
+   remplacé par rien).
+6. **CI (optionnel)** — proposer de générer la CI à étages (fast sur MR/PR,
+   full sur la branche par défaut + nightly). Forge déduite de
+   `git remote get-url origin` (gitlab/github ; pas de remote → sauter).
+   GitLab : demander l'image docker (`{{CI_IMAGE}}`, défaut `debian:stable-slim`
+   avec l'avertissement d'y mettre la toolchain du projet).
+   **Ne jamais écraser** un `.gitlab-ci.yml`/workflow existant — proposer le
+   contenu à intégrer à la main.
+7. **Timeout du hook Stop** — défaut 600 s dans `settings.json`. Si le build
+   d'une variante dépasse ~8 min, demander la valeur et remplacer `600` dans le
+   fichier généré (sed après copie ; le template reste du JSON valide).
 
 ## Étape 3 — Génération
 
@@ -97,6 +113,8 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | `{HOOK_PREFIX}post_edit.sh.tmpl` | `scripts/hooks/{HOOK_PREFIX}post_edit.sh` | `+x` | {PLATEFORME} |
 | `{HOOK_PREFIX}stop.sh.tmpl` | `scripts/hooks/{HOOK_PREFIX}stop.sh` | `+x` | {PLATEFORME} |
 | `cc_session_start.sh.tmpl` | `scripts/hooks/cc_session_start.sh` | `+x` | claude uniquement (Vibe n'a pas d'événement session-start) |
+| `gitlab-ci.yml.tmpl` | `.gitlab-ci.yml` (si CI acceptée, forge gitlab, fichier absent) | — | les deux |
+| `github-actions.yml.tmpl` | `.github/workflows/tripwire.yml` (si CI acceptée, forge github, fichier absent) | — | les deux |
 | `{PLATEFORME}-config.json.tmpl` | `{CONFIG_DIR}/{CONFIG_FILE}` (**merge**, voir plus bas) | — | {PLATEFORME} |
 | `{PLATEFORME}-md-section.md.tmpl` | section ajoutée au `{MD_FILE}` | — | {PLATEFORME} |
 
@@ -120,6 +138,9 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | `{{WATCHED_PATH_PATTERNS}}` | patterns `case` séparés par `\|` |
 | `{{TDD_SCOPE}}` | types de logique pure du projet |
 | `{{SESSION_VARIANT_LINE}}` | multi : `V="$(cat .tripwire-variant 2>/dev/null \|\| true)"; [ -n "$V" ] && CTX="$CTX tripwire: variante courante: $V."` ; **supprimer la ligne** si mono |
+| `{{MODULE_FAST_ENTRIES}}` | monorepo : entrées `"<glob>:<commande>"` séparées par des espaces ; **vide** sinon |
+| `{{CI_IMAGE}}` | image docker CI GitLab (défaut `debian:stable-slim`, à adapter à la toolchain) |
+| `{{DEFAULT_BRANCH}}` | branche par défaut du repo cible (`git symbolic-ref refs/remotes/origin/HEAD`, repli `main`) |
 
 ### Adaptations mono-cible
 - `ALL_VARIANTS=()` vide ; le mode `--variant` reste dans check.sh (inerte, ne pas le retirer).

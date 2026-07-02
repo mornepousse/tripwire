@@ -1,0 +1,25 @@
+# Généré par /tripwire:init — la CI n'appelle que scripts/check.sh (invariant).
+# Adapter la toolchain (steps setup-*) au projet.
+# Étages : fast sur PR (boucle courte), full sur la branche par défaut + nightly.
+name: tripwire
+on:
+  pull_request:
+  push:
+    branches: ["{{DEFAULT_BRANCH}}"]
+  schedule:
+    - cron: "0 3 * * *"   # nightly full — supprimer si inutile
+
+jobs:
+  check-fast:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/check.sh --fast
+
+  check-full:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/check.sh

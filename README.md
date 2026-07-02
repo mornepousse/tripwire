@@ -14,6 +14,28 @@ Extrait du workflow du projet KaSe_firmware.
 - `check.sh` — full : fast + toutes les variantes (pre-push, CI)
 - Dégradation gracieuse : env de build absent → retombe sur `--fast` au lieu de bloquer
 
+## Gros projets
+
+Le contrat « fast < 30 s à chaque édition, check du variant à chaque Stop »
+tient aussi sur les gros repos grâce à quatre mécanismes du `check.sh` généré :
+
+- **Skip-si-déjà-vert** : empreinte de l'état du repo (HEAD + diff + fichiers
+  non trackés) mémorisée par mode dans `.git/tripwire/` ; si rien n'a bougé
+  depuis le dernier vert, le check sort immédiatement. `--force` ou
+  `TRIPWIRE_FORCE=1` pour outrepasser (ex. toolchain mise à jour).
+- **Scoping monorepo** : table `MODULE_FAST=("glob:commande" …)` dans check.sh ;
+  les hooks passent le fichier édité (`--changed`) et la phase rapide ne lance
+  que les tests du module touché.
+- **Verrou + debounce** : `flock` empêche deux checks concurrents (le second
+  sort poliment) ; les hooks post-édition ne relancent pas de check à moins de
+  `TRIPWIRE_DEBOUNCE` secondes du précédent (défaut 10).
+- **Garde-budget** : si la phase rapide dérive au-delà de `TRIPWIRE_FAST_BUDGET`
+  secondes (défaut 30), check.sh l'annonce — le tripwire surveille son propre
+  contrat.
+
+`/tripwire:init` propose aussi une **CI à étages** (fast sur MR/PR, full sur la
+branche par défaut + nightly) et ajuste le timeout du hook Stop aux builds longs.
+
 ## Tokens & rtk (optionnel)
 
 tripwire est déjà frugal en tokens par design : `check.sh` exécute tests et

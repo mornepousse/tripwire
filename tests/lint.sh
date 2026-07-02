@@ -9,7 +9,7 @@ rc=0
 # des mots valides pour bash -n).
 for f in tests/*.sh skills/init/templates/*.tmpl; do
   case "$f" in
-    *.json.tmpl|*md-section*.tmpl) continue ;;  # non-shell
+    *.json.tmpl|*md-section*.tmpl|*.yml.tmpl) continue ;;  # non-shell
   esac
   if ! bash -n "$f" 2>/dev/null; then
     echo "✗ bash -n: $f" >&2; rc=1

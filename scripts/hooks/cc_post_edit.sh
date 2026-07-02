@@ -10,7 +10,15 @@ case "$FP" in
   *"skills/"*|*"tests/"*|*".claude-plugin/"*) ;;
   *) exit 0 ;;  # fichier non surveillé → rien
 esac
-OUT="$("$REPO/scripts/check.sh" --fast 2>&1)"
+# Debounce : pas de re-check si le dernier date de moins de TRIPWIRE_DEBOUNCE s (défaut 10).
+GITDIR="$(git rev-parse --git-dir 2>/dev/null || echo .git)"
+DB="${TRIPWIRE_DEBOUNCE:-10}"
+if [ "$DB" -gt 0 ]; then
+  NOW="$(date +%s)"; LASTT="$(cat "$GITDIR/tripwire/last-postedit" 2>/dev/null || echo 0)"
+  [ $((NOW - LASTT)) -lt "$DB" ] && exit 0
+  mkdir -p "$GITDIR/tripwire" 2>/dev/null; printf '%s' "$NOW" > "$GITDIR/tripwire/last-postedit" 2>/dev/null
+fi
+OUT="$("$REPO/scripts/check.sh" --fast --changed "$FP" 2>&1)"
 rc=$?
 if [ "$rc" -ne 0 ]; then
   echo "Régression phase rapide après édition de $FP :" >&2

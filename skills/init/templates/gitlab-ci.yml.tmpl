@@ -1,0 +1,27 @@
+# Généré par /tripwire:init — la CI n'appelle que scripts/check.sh (invariant).
+# Adapter `image` à la toolchain du projet (et ajouter le setup d'env si besoin).
+# Étages : fast sur MR (boucle courte), full sur la branche par défaut.
+# Nightly full : ajouter un pipeline schedule (Build > Pipeline schedules) — il
+# empruntera le job check-full.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+check-fast:
+  image: {{CI_IMAGE}}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - ./scripts/check.sh --fast
+
+check-full:
+  image: {{CI_IMAGE}}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - ./scripts/check.sh
