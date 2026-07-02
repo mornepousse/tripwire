@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Hook Claude Code PostToolUse — tests rapides après édition d'un fichier surveillé.
+set -uo pipefail
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO" || exit 1
+# python3 requis pour parser le JSON du hook ; sans lui le hook est inactif (signalé).
+command -v python3 >/dev/null 2>&1 || { echo "tripwire: python3 absent, hook PostToolUse inactif" >&2; exit 0; }
+FP="$(python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("tool_input",{}).get("file_path",""))' 2>/dev/null)"
+case "$FP" in
+  *"skills/"*|*"tests/"*|*".claude-plugin/"*) ;;
+  *) exit 0 ;;  # fichier non surveillé → rien
+esac
+OUT="$("$REPO/scripts/check.sh" --fast 2>&1)"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "Régression phase rapide après édition de $FP :" >&2
+  echo "$OUT" | tail -8 >&2
+  exit 2   # remonte à Claude
+fi
+exit 0

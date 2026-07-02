@@ -3,14 +3,26 @@
 Plugin multi-plateforme (Claude Code / Mistral Vibe) qui scaffolde un pipeline
 anti-régression. Voir `README.md` pour l'usage.
 
-## Tests
+## Workflow anti-régression (OBLIGATOIRE)
 
-Le « vert » de ce repo est `tests/e2e.sh` : il instancie les templates sur un
-repo jouet (mono-cible + multi-variantes) et vérifie vert/rouge/hooks/dégradation.
+Source unique de vérité : `scripts/check.sh` (le plugin mange sa propre nourriture).
+- `./scripts/check.sh --fast` — lint des templates shell + validation JSON des manifests + cohérence de version (~1 s)
+- `./scripts/check.sh` — fast + `tests/e2e.sh` (instancie les templates sur un repo jouet, mono-cible + multi-variantes, et vérifie vert/rouge/hooks/dégradation)
 
+**Activation des hooks git (une fois par clone)** :
 ```bash
-bash tests/e2e.sh   # doit afficher « E2E: tout vert » (exit 0)
+./scripts/install-hooks.sh   # ou: git config core.hooksPath scripts/hooks
 ```
+`pre-push` lance le check complet et bloque le push si rouge. WIP : `git push --no-verify`.
+
+**Hooks Claude Code** (`.claude/settings.json`, automatiques) :
+- `PostToolUse` sur édition de `skills/`, `tests/` ou `.claude-plugin/` → `check.sh --fast`.
+- `Stop` → check complet.
+
+### Norme TDD — nouvelle logique pure
+Tout nouveau comportement des templates (mode de check.sh, garde de hook,
+dégradation) : assertion e2e écrite **d'abord** dans `tests/e2e.sh`, rouge avant
+l'implémentation, verte après.
 
 ## Release
 

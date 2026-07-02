@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Hook git pre-push tripwire — bloque le push si le tripwire est rouge.
+# Activation: ./scripts/install-hooks.sh  (git config core.hooksPath scripts/hooks)
+# Échappatoire WIP: git push --no-verify
+set -uo pipefail
+REPO="$(git rev-parse --show-toplevel)"
+echo "[pre-push] check.sh complet…"
+"$REPO/scripts/check.sh"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "[pre-push] ROUGE — push bloqué. (git push --no-verify pour forcer un WIP)" >&2
+fi
+exit "$rc"

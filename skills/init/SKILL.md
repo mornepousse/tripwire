@@ -79,6 +79,7 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | `install-hooks.sh.tmpl` | `scripts/install-hooks.sh` | `+x` | les deux |
 | `{HOOK_PREFIX}post_edit.sh.tmpl` | `scripts/hooks/{HOOK_PREFIX}post_edit.sh` | `+x` | {PLATEFORME} |
 | `{HOOK_PREFIX}stop.sh.tmpl` | `scripts/hooks/{HOOK_PREFIX}stop.sh` | `+x` | {PLATEFORME} |
+| `cc_session_start.sh.tmpl` | `scripts/hooks/cc_session_start.sh` | `+x` | claude uniquement (Vibe n'a pas d'événement session-start) |
 | `{PLATEFORME}-config.json.tmpl` | `{CONFIG_DIR}/{CONFIG_FILE}` (**merge**, voir plus bas) | — | {PLATEFORME} |
 | `{PLATEFORME}-md-section.md.tmpl` | section ajoutée au `{MD_FILE}` | — | {PLATEFORME} |
 
@@ -100,11 +101,12 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | `{{STOP_CHECK_DESC}}` | `variant $VARIANT` (multi) ; `complet` (mono) |
 | `{{WATCHED_PATH_PATTERNS}}` | patterns `case` séparés par `\|` |
 | `{{TDD_SCOPE}}` | types de logique pure du projet |
+| `{{SESSION_VARIANT_LINE}}` | multi : `V="$(cat .tripwire-variant 2>/dev/null \|\| true)"; [ -n "$V" ] && CTX="$CTX tripwire: variante courante: $V."` ; **supprimer la ligne** si mono |
 
 ### Adaptations mono-cible
 - `ALL_VARIANTS=()` vide ; le mode `--variant` reste dans check.sh (inerte, ne pas le retirer).
 - Dans la section {MD_FILE} : supprimer la ligne `--variant`, supprimer la mention `.tripwire-variant`, et reformuler la puce {HOOK_TYPES} en "check complet".
-- Pas de fichier `.tripwire-variant`.
+- Pas de fichier `.tripwire-variant` ; supprimer la ligne `{{SESSION_VARIANT_LINE}}` de `cc_session_start.sh`.
 
 ### Multi-variantes
 - Créer `.tripwire-variant` contenant la variante par défaut.
@@ -138,6 +140,8 @@ git config --get core.hooksPath    # doit afficher scripts/hooks
 # Hook {HOOK_TYPES} : un chemin surveillé (doit durer ~ la commande fast) puis un non surveillé (retour immédiat)
 echo '{"file_path":"'$PWD'/<chemin surveillé>/x"}' | scripts/hooks/{HOOK_PREFIX}post_edit.sh; echo "rc=$?"   # rc=0
 echo '{"file_path":"'$PWD'/UNWATCHED.md"}' | scripts/hooks/{HOOK_PREFIX}post_edit.sh; echo "rc=$?"          # rc=0, immédiat
+# SessionStart (claude uniquement) : rc=0 toujours ; installe core.hooksPath s'il manque
+echo '{}' | scripts/hooks/cc_session_start.sh; echo "rc=$?"   # rc=0
 ```
 
 Si `check.sh --fast` est rouge : diagnostiquer avec l'utilisateur (commande

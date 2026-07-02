@@ -60,6 +60,19 @@ chk "post-edit non surveillé ignoré" 0 $?
 ./scripts/install-hooks.sh >/dev/null 2>&1
 chk "core.hooksPath" "scripts/hooks" "$(git config --get core.hooksPath)"
 
+# SessionStart : auto-installe les hooks git si absents (mono : pas de ligne variante)
+sed -e '/{{SESSION_VARIANT_LINE}}/d' \
+    "$PLUGIN/skills/init/templates/cc_session_start.sh.tmpl" > scripts/hooks/cc_session_start.sh
+chmod +x scripts/hooks/cc_session_start.sh
+git config --unset core.hooksPath
+OUT="$(echo '{}' | scripts/hooks/cc_session_start.sh 2>/dev/null)"; rc=$?
+chk "session-start installe les hooks (rc)" 0 $rc
+chk "session-start: core.hooksPath posé" "scripts/hooks" "$(git config --get core.hooksPath)"
+echo "$OUT" | grep -q "hooks git installés"; chk "session-start: contexte émis" 0 $?
+OUT="$(echo '{}' | scripts/hooks/cc_session_start.sh 2>/dev/null)"; rc=$?
+chk "session-start idempotent (rc)" 0 $rc
+chk "session-start idempotent (silencieux)" "" "$OUT"
+
 # Rouge : casser fast
 printf '#!/usr/bin/env bash\nexit 1\n' > fast.sh
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast rouge -> rc 1" 1 $?
@@ -101,6 +114,15 @@ sed -e 's#{{VARIANT_STATE_BLOCK}}#VARIANT="$(cat .tripwire-variant 2>/dev/null |
     "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" > scripts/hooks/cc_stop.sh
 chmod +x scripts/check.sh scripts/hooks/cc_stop.sh
 echo v1 > .tripwire-variant
+
+# SessionStart multi : installe les hooks + annonce la variante courante
+sed -e 's#{{SESSION_VARIANT_LINE}}#V="$(cat .tripwire-variant 2>/dev/null || true)"; [ -n "$V" ] \&\& CTX="$CTX tripwire: variante courante: $V."#' \
+    "$PLUGIN/skills/init/templates/cc_session_start.sh.tmpl" > scripts/hooks/cc_session_start.sh
+chmod +x scripts/hooks/cc_session_start.sh
+OUT="$(echo '{}' | scripts/hooks/cc_session_start.sh 2>/dev/null)"; rc=$?
+chk "multi session-start (rc)" 0 $rc
+chk "multi session-start: hooksPath posé" "scripts/hooks" "$(git config --get core.hooksPath)"
+echo "$OUT" | grep -q "variante courante: v1"; chk "multi session-start: variante annoncée" 0 $?
 
 bash -n scripts/check.sh && bash -n scripts/hooks/cc_stop.sh
 chk "bash -n multi" 0 $?

@@ -63,6 +63,27 @@ vibe plugin install tripwire@tripwire
 | `/tripwire:gen-agents` | Génère des agents test-author / code-reviewer / debugger spécialisés au projet |
 | `/tripwire:release` | Workflow de release : tag git = version, check vert obligatoire, glab/gh release |
 
+## Équipes (Claude for Teams / Enterprise)
+
+Pour déployer le pipeline à toute une organisation, deux mécanismes Claude Code
+se combinent avec tripwire (Admin Settings → Claude Code → Managed settings) :
+
+- **Marketplace contrôlé** : `strictKnownMarketplaces` dans les managed settings
+  limite les marketplaces autorisés — ajoutez-y l'URL de ce repo pour distribuer
+  tripwire officiellement (`claude plugin marketplace add <url>` chez chaque dev).
+- **Hooks managés** : les managed settings acceptent une clé `hooks` identique à
+  celle que `/tripwire:init` écrit dans `.claude/settings.json`. Un admin peut
+  donc pousser les hooks `PostToolUse`/`Stop`/`SessionStart` org-wide. Pour que
+  les repos non-tripwire restent silencieux, garder les commandes derrière un
+  test d'existence :
+  ```json
+  { "type": "command",
+    "command": "H=\"$CLAUDE_PROJECT_DIR/scripts/hooks/cc_stop.sh\"; [ -x \"$H\" ] && exec \"$H\"; exit 0" }
+  ```
+
+L'invariant reste inchangé : les hooks managés n'appellent que `scripts/check.sh`
+du repo courant ; chaque projet garde la définition de son « vert ».
+
 ## Détection automatique de plateforme
 
 Le plugin détecte automatiquement si vous utilisez **Claude Code** ou **Mistral Vibe** en vérifiant les variables d'environnement (`CLAUDE_PROJECT_DIR` ou `VIBE_PROJECT_DIR`) et adapte son comportement :

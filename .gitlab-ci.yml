@@ -1,0 +1,15 @@
+# CI tripwire — 3ᵉ jambe de l'invariant : la CI appelle scripts/check.sh
+# (source unique de vérité), comme pre-push et les hooks de plateforme.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+check:
+  image: debian:stable-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git python3 >/dev/null
+  script:
+    - bash scripts/check.sh
