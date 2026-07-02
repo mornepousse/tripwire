@@ -31,7 +31,10 @@ Workflow piloté par `/tripwire:release`. La version est portée par le tag git
 `.claude-plugin/marketplace.json` (le champ `version` que lit `claude plugin
 update` — il doit suivre le tag).
 
-- **Pré-flight** : working tree propre + `bash tests/e2e.sh` vert.
+- **Pré-flight** : working tree propre + `./scripts/check.sh` vert (full).
+- **Tampon dogfood** : si les templates ont changé, le `# tripwire-template:`
+  de `scripts/check.sh` doit être mis à jour vers la nouvelle version dans le
+  commit de bump (cohérence scaffold ↔ plugin).
 - **Build d'artefacts** : aucun (plugin non compilé, distribué via marketplace).
 - **Artefacts à attacher** : aucun.
 

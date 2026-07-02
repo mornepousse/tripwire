@@ -59,9 +59,20 @@ vibe plugin install tripwire@tripwire
 
 | Skill | Usage |
 |---|---|
-| `/tripwire:init` | Scaffolde check.sh, hooks git, hooks de plateforme (Claude Code ou Mistral Vibe), section config (CLAUDE.md ou VIBE.md) |
-| `/tripwire:gen-agents` | Génère des agents test-author / code-reviewer / debugger spécialisés au projet |
-| `/tripwire:release` | Workflow de release : tag git = version, check vert obligatoire, glab/gh release |
+| `/tripwire:init` | Scaffolde check.sh, hooks git, hooks de plateforme (Claude Code : PostToolUse/Stop/SessionStart ; Mistral Vibe : onEdit/onWrite/onStop), section config (CLAUDE.md ou VIBE.md). **Relancé sur un projet équipé** : détecte les scaffolds en retard via le tampon `# tripwire-template:` et propose une mise à jour ciblée sans écraser vos commandes |
+| `/tripwire:gen-agents` | Génère jusqu'à 5 agents spécialisés au projet : test-author / code-reviewer / debugger / maintainer / security-auditor (les deux derniers avec mémoire persistante inter-sessions) |
+| `/tripwire:release` | Workflow de release : tag git = version, bump semver proposé depuis les commits, check vert obligatoire, sync des manifests de version, glab/gh release |
+
+## Mettre à jour un projet équipé
+
+Chaque `check.sh` généré porte un tampon `# tripwire-template: vX.Y.Z`. Après un
+`claude plugin update tripwire@tripwire`, relancez `/tripwire:init` dans le
+projet : le skill compare le tampon à la version du plugin, annonce ce qui a
+changé et met à jour les fichiers scaffoldés en préservant vos commandes
+fast/build, variantes et chemins surveillés.
+
+Le hook `SessionStart` installe par ailleurs les hooks git automatiquement à
+chaque nouveau clone — plus besoin de penser à `./scripts/install-hooks.sh`.
 
 ## Équipes (Claude for Teams / Enterprise)
 
