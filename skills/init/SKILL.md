@@ -28,12 +28,29 @@ Les variables suivantes sont dérivées de PLATEFORME :
 Ne JAMAIS dupliquer une commande de test/build dans un hook : les hooks
 appellent `check.sh` et rien d'autre.
 
-## Étape 0 — Idempotence
+## Étape 0 — Idempotence & mise à jour
 
 Si `scripts/check.sh` existe déjà dans le repo cible :
-- Le lire, annoncer ce qui est déjà en place, et demander à l'utilisateur
-  (AskUserQuestion) : mettre à jour / compléter ce qui manque / annuler.
+- Lire son tampon `# tripwire-template: vX.Y.Z` (ligne 2 ; absent → scaffold
+  pré-v0.5.0) et le comparer à la version du plugin (champ `version` de
+  `.claude-plugin/plugin.json` à la racine du plugin — deux niveaux au-dessus
+  du dossier de cette skill).
+- Scaffold en retard → annoncer **précisément ce qui a changé** entre les deux
+  versions (voir « Historique des templates ») et demander (AskUserQuestion) :
+  mettre à jour ces éléments / compléter ce qui manque / annuler.
+- Lors d'une mise à jour : ne JAMAIS écraser les valeurs projet (commandes
+  fast/build, variantes, chemins surveillés, env setup) — les relire depuis les
+  fichiers existants et les réinjecter dans les nouveaux templates. Mettre à
+  jour le tampon.
 - Ne jamais écraser un `check.sh` existant sans accord explicite.
+
+### Historique des templates
+
+| Version | Changements nécessitant une mise à jour du scaffold |
+|---|---|
+| v0.2.0 | base : check.sh, pre-push, install-hooks, hooks post_edit/stop |
+| v0.3.0 | support Mistral Vibe (rien à mettre à jour pour un scaffold Claude Code) |
+| v0.5.0 | + hook SessionStart (`cc_session_start.sh` + entrée `settings.json`) ; tampon `# tripwire-template:` dans check.sh |
 
 ## Étape 1 — Détection de stack
 
@@ -88,6 +105,7 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | Placeholder | Valeur |
 |---|---|
 | `{{PROJECT_NAME}}` | nom du repo cible |
+| `{{TRIPWIRE_VERSION}}` | version du plugin au moment du scaffold (`vX.Y.Z`, depuis le `version` de `.claude-plugin/plugin.json` du plugin) — sert à l'Étape 0 pour détecter les scaffolds en retard |
 | `{{FAST_CMD}}` | commande fast (une ligne) |
 | `{{FAST_DESC}}` | description humaine de la phase fast |
 | `{{VARIANTS_SPACE_SEPARATED}}` | `v1 v2 …` ; **vide** si mono-cible |

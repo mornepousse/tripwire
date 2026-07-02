@@ -14,6 +14,7 @@ printf '#!/usr/bin/env bash\nexit 0\n' > build.sh && chmod +x build.sh
 
 # --- Instanciation (sed) : mono-cible, pas d'env setup ---
 sed -e 's|{{PROJECT_NAME}}|toy|g' \
+    -e 's|{{TRIPWIRE_VERSION}}|v9.9.9|g' \
     -e 's|{{VARIANTS_SPACE_SEPARATED}}||g' \
     -e 's|{{FAST_CMD}}|./fast.sh|g' \
     -e 's|{{VARIANT_BUILD_CMD}}|./build.sh|g' \
@@ -27,6 +28,13 @@ sed -e '/{{VARIANT_STATE_BLOCK}}/d' -e '/{{ENV_SETUP_BLOCK}}/d' \
     -e 's|{{ENV_AVAILABLE_TEST}}|true|g' \
     -e 's|{{STOP_CHECK_ARGS}}||g' -e 's|{{STOP_CHECK_DESC}}|complet|g' \
     "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" > scripts/hooks/cc_stop.sh
+# Templates Mistral Vibe (payload: file_path au niveau racine, pas tool_input)
+sed -e 's|{{WATCHED_PATH_PATTERNS}}|*"/src/"*|g' \
+    "$PLUGIN/skills/init/templates/vibe_post_edit.sh.tmpl" > scripts/hooks/vibe_post_edit.sh
+sed -e '/{{VARIANT_STATE_BLOCK}}/d' -e '/{{ENV_SETUP_BLOCK}}/d' \
+    -e 's|{{ENV_AVAILABLE_TEST}}|true|g' \
+    -e 's|{{STOP_CHECK_ARGS}}||g' -e 's|{{STOP_CHECK_DESC}}|complet|g' \
+    "$PLUGIN/skills/init/templates/vibe_stop.sh.tmpl" > scripts/hooks/vibe_stop.sh
 chmod +x scripts/check.sh scripts/hooks/* scripts/install-hooks.sh
 
 fails=0
@@ -35,6 +43,10 @@ chk() { local desc="$1" want="$2" got="$3"
 
 # Aucun placeholder résiduel
 if grep -rn '{{' scripts/ >/dev/null; then echo "✗ placeholders résiduels"; fails=1; else echo "✓ pas de placeholder résiduel"; fi
+
+# Tampon de version du scaffold (upgrade path de /tripwire:init)
+grep -q '^# tripwire-template: v9.9.9$' scripts/check.sh
+chk "tampon tripwire-template présent" 0 $?
 
 # Frontmatters des templates gen-agents : structurellement valides
 # (name/description double-quotés sur une ligne — pas de dépendance pyyaml)
@@ -55,6 +67,11 @@ echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_e
 chk "post-edit surveillé vert" 0 $?
 echo '{"tool_input":{"file_path":"'"$TMP"'/README.md"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
 chk "post-edit non surveillé ignoré" 0 $?
+scripts/hooks/vibe_stop.sh </dev/null >/dev/null 2>&1;   chk "vibe stop hook vert" 0 $?
+echo '{"file_path":"'"$TMP"'/src/a.c"}' | scripts/hooks/vibe_post_edit.sh >/dev/null 2>&1
+chk "vibe post-edit surveillé vert" 0 $?
+echo '{"file_path":"'"$TMP"'/README.md"}' | scripts/hooks/vibe_post_edit.sh >/dev/null 2>&1
+chk "vibe post-edit non surveillé ignoré" 0 $?
 
 # install-hooks
 ./scripts/install-hooks.sh >/dev/null 2>&1
@@ -80,6 +97,11 @@ scripts/hooks/pre-push </dev/null >/dev/null 2>&1;     chk "pre-push bloque" 1 $
 echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
 chk "post-edit rouge -> rc 2" 2 $?
 scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop rouge -> rc 2" 2 $?
+echo '{"file_path":"'"$TMP"'/src/a.c"}' | scripts/hooks/vibe_post_edit.sh >/dev/null 2>&1
+chk "vibe post-edit rouge -> rc 2" 2 $?
+scripts/hooks/vibe_stop.sh </dev/null >/dev/null 2>&1; chk "vibe stop rouge -> rc 2" 2 $?
+printf '{"stop_hook_active": true}' | scripts/hooks/vibe_stop.sh >/dev/null 2>&1
+chk "vibe garde stop_hook_active -> rc 0" 0 $?
 
 # Rouge : fast vert mais build cassé -> full rouge, fast vert
 printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh
@@ -101,6 +123,7 @@ EOF
 chmod +x build.sh
 
 sed -e 's|{{PROJECT_NAME}}|toy-multi|g' \
+    -e 's|{{TRIPWIRE_VERSION}}|v9.9.9|g' \
     -e 's|{{VARIANTS_SPACE_SEPARATED}}|v1 v2|g' \
     -e 's|{{FAST_CMD}}|./fast.sh|g' \
     -e 's|{{VARIANT_BUILD_CMD}}|./build.sh "$v"|g' \

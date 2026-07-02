@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# tripwire-template: v0.5.0
 # Tripwire anti-régression tripwire — source unique de vérité du "quoi vérifier".
 # Généré par /tripwire:init. Adapter ICI ; les hooks ne font qu'appeler ce script.
 # Modes:

@@ -92,7 +92,24 @@ version au niveau de la section, checklist sous-section `### Smoke test`).
      (fichiers en arguments positionnels = upload direct)
    - contient `github` → `gh release create vX.Y.Z <fichiers...> --notes "<notes>"`
    - autre → donner les fichiers et laisser l'utilisateur publier.
-8. **Récap** : version, artefacts, URL de la release.
+8. **Récap** : version, artefacts, URL de la release. Puis rappels de
+   propagation :
+   - repo plugin (manifests `.claude-plugin/` présents) → les installs se
+     mettent à jour via `claude plugin update <plugin>@<marketplace>` ;
+   - des templates scaffoldés ont changé dans cette release → rappeler que les
+     projets équipés se mettent à jour en relançant le skill d'init (détection
+     du retard via le tampon `# tripwire-template:` de leur check.sh).
+
+### Échec de signature (GPG/SSH)
+
+Si un commit ou un tag échoue sur `gpg failed to sign the data` (pinentry sans
+TTY, carte/clé indisponible) :
+1. proposer d'abord à l'utilisateur de déverrouiller l'agent **dans sa session
+   interactive** : `! echo test | gpg --clearsign >/dev/null`, puis réessayer ;
+2. sinon proposer (AskUserQuestion) le repli `--no-gpg-sign` (commit/tag non
+   signé — le mentionner dans le récap final) ou l'abandon ;
+3. ne jamais boucler sur des retries silencieux : chaque tentative relance un
+   pinentry chez l'utilisateur.
 
 ## Notes de release
 
