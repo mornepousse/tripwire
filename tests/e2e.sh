@@ -152,8 +152,13 @@ grep -q -- "check.sh --fast" ci-gl.yml && grep -q "scripts/check.sh$" ci-gl.yml 
 chk "templates CI instanciés (étages fast/full, pas de résidu)" 0 $?
 
 # Rouge : casser fast
-printf '#!/usr/bin/env bash\nexit 1\n' > fast.sh
+printf '#!/usr/bin/env bash\necho BOOM\nexit 1\n' > fast.sh
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast rouge -> rc 1" 1 $?
+[ -f .git/tripwire/last-fail.log ]; chk "last-fail.log créé sur rouge" 0 $?
+grep -q '^# cmd: ./fast.sh' .git/tripwire/last-fail.log; chk "last-fail: en-tête cmd" 0 $?
+grep -q 'BOOM' .git/tripwire/last-fail.log; chk "last-fail: sortie capturée" 0 $?
+OUT="$(./scripts/check.sh --fast 2>&1)"
+echo "$OUT" | grep -q "last-fail.log"; chk "message d'échec pointe le log" 0 $?
 scripts/hooks/pre-push </dev/null >/dev/null 2>&1;     chk "pre-push bloque" 1 $?
 echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
 chk "post-edit rouge -> rc 2" 2 $?
@@ -176,6 +181,7 @@ chk "vibe garde stop_hook_active -> rc 0" 0 $?
 printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh
 printf '#!/usr/bin/env bash\nexit 1\n' > build.sh
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast vert (build cassé)" 0 $?
+[ -f .git/tripwire/last-fail.log ]; chk "log conservé après un vert" 0 $?
 ./scripts/check.sh >/dev/null 2>&1;                    chk "full rouge (build cassé)" 1 $?
 
 # ===== Multi-variantes =====

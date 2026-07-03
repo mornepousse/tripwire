@@ -73,6 +73,16 @@ if command -v flock >/dev/null 2>&1 && [ -d "$GITDIR/tripwire" ]; then
   fi
 fi
 
+# ---- Capture d'échec : la sortie du dernier rouge reste lisible sans re-run ----
+OUTBUF="$GITDIR/tripwire/.out.$$"
+trap 'rm -f "$OUTBUF"' EXIT
+capture_fail() { # $1=label $2=commande affichée ; la sortie est déjà dans $OUTBUF
+  {
+    printf '# cmd: %s\n# mode: %s\n' "$2" "$1"
+    tail -200 "$OUTBUF" 2>/dev/null
+  } > "$GITDIR/tripwire/last-fail.log" 2>/dev/null || true
+}
+
 # ---- Skip-si-déjà-vert : même état que le dernier vert -> rien à refaire ----
 fingerprint() {
   {
@@ -94,10 +104,11 @@ fi
 run_fast() {
   info "${FAST_LABEL}…"
   local t0=$SECONDS rc=0
-  if ( eval "$FAST_RUN_CMD" ) >/dev/null 2>&1; then
+  if ( eval "$FAST_RUN_CMD" ) >"$OUTBUF" 2>&1; then
     ok "$FAST_LABEL OK"
   else
-    fail "$FAST_LABEL: échec (relance pour le détail: $FAST_RUN_CMD)"
+    capture_fail "$FAST_LABEL" "$FAST_RUN_CMD"
+    fail "$FAST_LABEL: échec — détail: $GITDIR/tripwire/last-fail.log (ou relance: $FAST_RUN_CMD)"
     rc=1
   fi
   local dt=$((SECONDS - t0)) budget="${TRIPWIRE_FAST_BUDGET:-30}"
@@ -113,11 +124,12 @@ run_fast() {
 build_variant() {
   local v="$1"
   info "Build ${v:-complet}…"
-  if ( {{VARIANT_BUILD_CMD}} ) >/dev/null 2>&1; then
+  if ( {{VARIANT_BUILD_CMD}} ) >"$OUTBUF" 2>&1; then
     ok "Build ${v:-complet} OK"
     return 0
   else
-    fail "Build ${v:-complet}: échec (relance pour le détail: {{VARIANT_BUILD_CMD}})"
+    capture_fail "Build ${v:-complet}" "{{VARIANT_BUILD_CMD}}"
+    fail "Build ${v:-complet}: échec — détail: $GITDIR/tripwire/last-fail.log (ou relance: {{VARIANT_BUILD_CMD}})"
     return 1
   fi
 }
