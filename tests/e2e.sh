@@ -162,6 +162,20 @@ grep -q -- "check.sh --fast" ci-gl.yml && grep -q "scripts/check.sh$" ci-gl.yml 
   && ! grep -q '{{' ci-gl.yml ci-gh.yml
 chk "templates CI instanciés (étages fast/full, pas de résidu)" 0 $?
 
+# ===== Oracle git-bisect : check.sh rend 0/1, bisect run localise le fautif =====
+GITC() { git -c user.email=e2e@toy -c user.name=e2e -c commit.gpgsign=false "$@"; }
+git add -A >/dev/null 2>&1 && GITC commit -qm "c1 base verte"
+echo 2 > src/f2 && git add -A && GITC commit -qm "c2 verte"
+echo 3 > src/f3 && git add -A && GITC commit -qm "c3 verte"
+printf '#!/usr/bin/env bash\nexit 1\n' > fast.sh && git add -A && GITC commit -qm "c4 CASSE"
+echo 5 > src/f5 && git add -A && GITC commit -qm "c5 toujours rouge"
+BAD_EXPECTED="$(git rev-parse HEAD~1)"
+git bisect start HEAD HEAD~4 >/dev/null 2>&1
+git bisect run ./scripts/check.sh --fast >/dev/null 2>&1
+FOUND="$(git rev-parse refs/bisect/bad 2>/dev/null)"
+git bisect reset >/dev/null 2>&1
+chk "bisect: commit fautif localisé" "$BAD_EXPECTED" "$FOUND"
+
 # Rouge : casser fast
 printf '#!/usr/bin/env bash\necho BOOM\nexit 1\n' > fast.sh
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast rouge -> rc 1" 1 $?
