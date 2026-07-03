@@ -104,6 +104,17 @@ touch src/nouveau.c                                             # empreinte diff
 OUT="$(./scripts/check.sh --fast 2>&1)"
 echo "$OUT" | grep -q "Phase rapide OK"; chk "état modifié -> re-run" 0 $?
 
+# history.tsv : chaque run réel logge une ligne TSV ; les skips non
+N0="$(wc -l < .git/tripwire/history.tsv 2>/dev/null || echo 0)"
+./scripts/check.sh --fast --force >/dev/null 2>&1
+N1="$(wc -l < .git/tripwire/history.tsv 2>/dev/null || echo 0)"
+chk "history: run réel loggé" "$((N0+1))" "$N1"
+./scripts/check.sh --fast >/dev/null 2>&1     # état inchangé -> skip
+N2="$(wc -l < .git/tripwire/history.tsv 2>/dev/null || echo 0)"
+chk "history: skip non loggé" "$N1" "$N2"
+awk -F'\t' 'NF!=4{bad=1} END{exit bad}' .git/tripwire/history.tsv
+chk "history: 4 champs TSV" 0 $?
+
 # Garde-budget : dépassement -> avertissement non fatal
 OUT="$(TRIPWIRE_FAST_BUDGET=-1 ./scripts/check.sh --fast --force 2>&1)"; rc=$?
 chk "budget dépassé: rc reste 0" 0 $rc

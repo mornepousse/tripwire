@@ -100,6 +100,8 @@ if [ "$FORCE" != "1" ] && [ -f "$STAMP" ] && [ "$(cat "$STAMP" 2>/dev/null)" = "
   exit 0
 fi
 
+T_START=$SECONDS
+
 # ---- Phase rapide (boucle courte, budget TRIPWIRE_FAST_BUDGET s) ----
 run_fast() {
   info "${FAST_LABEL}…"
@@ -156,5 +158,14 @@ if [ "$rc" -eq 0 ]; then
 else
   fail "check.sh: ROUGE"
 fi
+# Historique des durées (jamais bloquant) — les skips sortent avant ce point.
+{
+  HIST="$GITDIR/tripwire/history.tsv"
+  printf '%s\t%s\t%s\t%s\n' "$(date +%s)" "$KEY" "$((SECONDS - T_START))" "$rc" >> "$HIST"
+  if [ "$(wc -l < "$HIST")" -gt 500 ]; then
+    tail -500 "$HIST" > "$HIST.$$" && mv "$HIST.$$" "$HIST"
+  fi
+} 2>/dev/null || true
+
 echo "========================================"
 exit "$rc"
