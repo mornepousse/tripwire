@@ -163,7 +163,7 @@ fi
   HIST="$GITDIR/tripwire/history.tsv"
   printf '%s\t%s\t%s\t%s\n' "$(date +%s)" "$KEY" "$((SECONDS - T_START))" "$rc" >> "$HIST"
   if [ "$(wc -l < "$HIST")" -gt 500 ]; then
-    tail -500 "$HIST" > "$HIST.$$" && mv "$HIST.$$" "$HIST"
+    { tail -500 "$HIST" > "$HIST.$$" && mv "$HIST.$$" "$HIST"; } || rm -f "$HIST.$$"
   fi
 } 2>/dev/null || true
 
