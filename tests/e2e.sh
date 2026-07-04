@@ -195,7 +195,7 @@ echo 7 > ntests.txt
 ./scripts/check.sh --fast --force >/dev/null 2>&1
 chk "ratchet: auto-bump à la hausse" "7" "$(cat .tripwire-testcount 2>/dev/null)"
 echo 6 > ntests.txt
-OUT="$(./scripts/check.sh --fast --force 2>&1)"; rc=$?
+OUT="$(TRIPWIRE_RATCHET_STRICT=0 ./scripts/check.sh --fast --force 2>&1)"; rc=$?
 chk "ratchet: baisse -> avertissement, rc 0" 0 $rc
 echo "$OUT" | grep -q "ratchet"; chk "ratchet: message d'avertissement" 0 $?
 chk "ratchet: la référence ne baisse pas seule" "7" "$(cat .tripwire-testcount 2>/dev/null)"
