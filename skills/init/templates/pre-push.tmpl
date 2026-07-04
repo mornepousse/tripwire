@@ -5,6 +5,7 @@
 set -uo pipefail
 REPO="$(git rev-parse --show-toplevel)"
 echo "[pre-push] check.sh complet…"
+export TRIPWIRE_RATCHET_STRICT=1   # au push, une baisse du nombre de tests bloque
 {{ENV_SETUP_BLOCK}}
 "$REPO/scripts/check.sh"
 rc=$?

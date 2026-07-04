@@ -20,6 +20,9 @@ sed -e 's|{{PROJECT_NAME}}|toy|g' \
     -e 's|{{MODULE_FAST_ENTRIES}}||g' \
     -e 's|{{FAST_CMD}}|./fast.sh|g' \
     -e 's|{{VARIANT_BUILD_CMD}}|./build.sh|g' \
+    -e 's|{{SRC_GREP}}||g' \
+    -e 's|{{TEST_GREP}}||g' \
+    -e 's|{{TEST_COUNT_CMD}}|cat ntests.txt|g' \
     "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check.sh
 sed -e 's|{{PROJECT_NAME}}|toy|g' -e '/{{ENV_SETUP_BLOCK}}/d' \
     "$PLUGIN/skills/init/templates/pre-push.tmpl" > scripts/hooks/pre-push
@@ -142,6 +145,9 @@ sed -e 's|{{PROJECT_NAME}}|toy|g' \
     -e 's#{{MODULE_FAST_ENTRIES}}#"*/modA/*:./modA.sh"#' \
     -e 's|{{FAST_CMD}}|./fast.sh|g' \
     -e 's|{{VARIANT_BUILD_CMD}}|./build.sh|g' \
+    -e 's|{{SRC_GREP}}||g' \
+    -e 's|{{TEST_GREP}}||g' \
+    -e 's|{{TEST_COUNT_CMD}}||g' \
     "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check_mod.sh
 chmod +x scripts/check_mod.sh
 rm -f modA.ran
@@ -175,6 +181,25 @@ git bisect run ./scripts/check.sh --fast >/dev/null 2>&1
 FOUND="$(git rev-parse refs/bisect/bad 2>/dev/null)"
 git bisect reset >/dev/null 2>&1
 chk "bisect: commit fautif localisé" "$BAD_EXPECTED" "$FOUND"
+
+# ===== Ratchet de tests =====
+printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh   # le bloc bisect laisse fast.sh cassé
+echo 5 > ntests.txt
+./scripts/check.sh --fast --force >/dev/null 2>&1
+chk "ratchet: bootstrap crée la référence" "5" "$(cat .tripwire-testcount 2>/dev/null)"
+echo 7 > ntests.txt
+./scripts/check.sh --fast --force >/dev/null 2>&1
+chk "ratchet: auto-bump à la hausse" "7" "$(cat .tripwire-testcount 2>/dev/null)"
+echo 6 > ntests.txt
+OUT="$(./scripts/check.sh --fast --force 2>&1)"; rc=$?
+chk "ratchet: baisse -> avertissement, rc 0" 0 $rc
+echo "$OUT" | grep -q "ratchet"; chk "ratchet: message d'avertissement" 0 $?
+chk "ratchet: la référence ne baisse pas seule" "7" "$(cat .tripwire-testcount 2>/dev/null)"
+OUT="$(TRIPWIRE_RATCHET_STRICT=1 ./scripts/check.sh --fast --force 2>&1)"; rc=$?
+chk "ratchet: baisse + STRICT -> rouge" 1 $rc
+scripts/hooks/pre-push </dev/null >/dev/null 2>&1
+chk "ratchet: pre-push bloque sur baisse" 1 $?
+echo 7 > ntests.txt   # remettre compte == référence (sections suivantes propres)
 
 # Rouge : casser fast
 printf '#!/usr/bin/env bash\necho BOOM\nexit 1\n' > fast.sh
@@ -228,6 +253,9 @@ sed -e 's|{{PROJECT_NAME}}|toy-multi|g' \
     -e 's|{{MODULE_FAST_ENTRIES}}||g' \
     -e 's|{{FAST_CMD}}|./fast.sh|g' \
     -e 's|{{VARIANT_BUILD_CMD}}|./build.sh "$v"|g' \
+    -e 's|{{SRC_GREP}}||g' \
+    -e 's|{{TEST_GREP}}||g' \
+    -e 's|{{TEST_COUNT_CMD}}||g' \
     "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check.sh
 
 sed -e 's#{{VARIANT_STATE_BLOCK}}#VARIANT="$(cat .tripwire-variant 2>/dev/null || true)"; VARIANT="${VARIANT:-v1}"#' \
