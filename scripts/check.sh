@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tripwire-template: v0.6.0
+# tripwire-template: v0.7.0
 # Tripwire anti-régression tripwire — source unique de vérité du "quoi vérifier".
 # Généré par /tripwire:init. Adapter ICI ; les hooks ne font qu'appeler ce script.
 # Modes:
@@ -73,6 +73,16 @@ if command -v flock >/dev/null 2>&1 && [ -d "$GITDIR/tripwire" ]; then
   fi
 fi
 
+# ---- Capture d'échec : la sortie du dernier rouge reste lisible sans re-run ----
+OUTBUF="$GITDIR/tripwire/.out.$$"
+trap 'rm -f "$OUTBUF"' EXIT
+capture_fail() { # $1=label $2=commande affichée ; la sortie est déjà dans $OUTBUF
+  {
+    printf '# cmd: %s\n# mode: %s\n' "$2" "$1"
+    tail -200 "$OUTBUF" 2>/dev/null
+  } > "$GITDIR/tripwire/last-fail.log" 2>/dev/null || true
+}
+
 # ---- Skip-si-déjà-vert : même état que le dernier vert -> rien à refaire ----
 fingerprint() {
   {
@@ -90,14 +100,17 @@ if [ "$FORCE" != "1" ] && [ -f "$STAMP" ] && [ "$(cat "$STAMP" 2>/dev/null)" = "
   exit 0
 fi
 
+T_START=$SECONDS
+
 # ---- Phase rapide (boucle courte, budget TRIPWIRE_FAST_BUDGET s) ----
 run_fast() {
   info "${FAST_LABEL}…"
   local t0=$SECONDS rc=0
-  if ( eval "$FAST_RUN_CMD" ) >/dev/null 2>&1; then
+  if ( eval "$FAST_RUN_CMD" ) >"$OUTBUF" 2>&1; then
     ok "$FAST_LABEL OK"
   else
-    fail "$FAST_LABEL: échec (relance pour le détail: $FAST_RUN_CMD)"
+    capture_fail "$FAST_LABEL" "$FAST_RUN_CMD"
+    fail "$FAST_LABEL: échec — détail: $GITDIR/tripwire/last-fail.log (ou relance: $FAST_RUN_CMD)"
     rc=1
   fi
   local dt=$((SECONDS - t0)) budget="${TRIPWIRE_FAST_BUDGET:-30}"
@@ -113,11 +126,12 @@ run_fast() {
 build_variant() {
   local v="$1"
   info "Build ${v:-complet}…"
-  if ( bash tests/e2e.sh ) >/dev/null 2>&1; then
+  if ( bash tests/e2e.sh ) >"$OUTBUF" 2>&1; then
     ok "Build ${v:-complet} OK"
     return 0
   else
-    fail "Build ${v:-complet}: échec (relance pour le détail: bash tests/e2e.sh)"
+    capture_fail "Build ${v:-complet}" "bash tests/e2e.sh"
+    fail "Build ${v:-complet}: échec — détail: $GITDIR/tripwire/last-fail.log (ou relance: bash tests/e2e.sh)"
     return 1
   fi
 }
@@ -144,5 +158,14 @@ if [ "$rc" -eq 0 ]; then
 else
   fail "check.sh: ROUGE"
 fi
+# Historique des durées (jamais bloquant) — les skips sortent avant ce point.
+{
+  HIST="$GITDIR/tripwire/history.tsv"
+  printf '%s\t%s\t%s\t%s\n' "$(date +%s)" "$KEY" "$((SECONDS - T_START))" "$rc" >> "$HIST"
+  if [ "$(wc -l < "$HIST")" -gt 500 ]; then
+    { tail -500 "$HIST" > "$HIST.$$" && mv "$HIST.$$" "$HIST"; } || rm -f "$HIST.$$"
+  fi
+} 2>/dev/null || true
+
 echo "========================================"
 exit "$rc"

@@ -32,6 +32,10 @@ tient aussi sur les gros repos grâce à quatre mécanismes du `check.sh` géné
 - **Garde-budget** : si la phase rapide dérive au-delà de `TRIPWIRE_FAST_BUDGET`
   secondes (défaut 30), check.sh l'annonce — le tripwire surveille son propre
   contrat.
+- **Échec lisible sans re-run** : la sortie du dernier rouge est capturée dans
+  `.git/tripwire/last-fail.log` (l'assistant la lit au lieu de relancer la
+  commande) ; chaque passage réel logge sa durée dans `history.tsv` —
+  `/tripwire:status` en tire la tendance.
 
 `/tripwire:init` propose aussi une **CI à étages** (fast sur MR/PR, full sur la
 branche par défaut + nightly) et ajuste le timeout du hook Stop aux builds longs.
@@ -84,6 +88,8 @@ vibe plugin install tripwire@tripwire
 | `/tripwire:init` | Scaffolde check.sh (skip-si-vert, scoping monorepo, verrou, garde-budget), hooks git, hooks de plateforme (Claude Code : PostToolUse/Stop/SessionStart ; Mistral Vibe : onEdit/onWrite/onStop), CI à étages optionnelle, section config (CLAUDE.md ou VIBE.md). **Relancé sur un projet équipé** : détecte les scaffolds en retard via le tampon `# tripwire-template:` et propose une mise à jour ciblée sans écraser vos commandes |
 | `/tripwire:gen-agents` | Génère jusqu'à 5 agents spécialisés au projet : test-author / code-reviewer / debugger / maintainer / security-auditor (les deux derniers avec mémoire persistante inter-sessions) |
 | `/tripwire:release` | Workflow de release : tag git = version, bump semver proposé depuis les commits, check vert obligatoire, sync des manifests de version, glab/gh release |
+| `/tripwire:status` | Diagnostic one-shot : scaffold à jour ? hooks actifs ? dernier vert/rouge ? dérive des durées ? angles morts de surveillance ? |
+| `/tripwire:bisect` | Localise le commit qui a cassé le check : `git bisect run` avec check.sh comme oracle |
 
 ## Mettre à jour un projet équipé
 
