@@ -20,8 +20,8 @@ sed -e 's|{{PROJECT_NAME}}|toy|g' \
     -e 's|{{MODULE_FAST_ENTRIES}}||g' \
     -e 's|{{FAST_CMD}}|./fast.sh|g' \
     -e 's|{{VARIANT_BUILD_CMD}}|./build.sh|g' \
-    -e 's|{{SRC_GREP}}||g' \
-    -e 's|{{TEST_GREP}}||g' \
+    -e 's|{{SRC_GREP}}|^src/|g' \
+    -e 's|{{TEST_GREP}}|^test/|g' \
     -e 's|{{TEST_COUNT_CMD}}|cat ntests.txt|g' \
     "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check.sh
 sed -e 's|{{PROJECT_NAME}}|toy|g' -e '/{{ENV_SETUP_BLOCK}}/d' \
@@ -219,6 +219,15 @@ printf 'assert(a);\nassert(b);\nassert(c);\nassert(d);\n' > test/t.c   # 3 -> 4 
 OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/test/t.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
 echo "$OUT" | grep -q "assertion"; chk "garde assertions: gain -> silencieux" 1 $?
 git checkout -q -- test/t.c
+
+# ===== Avis TDD : source modifié sans test modifié =====
+echo mod >> src/f2                                    # source tracké modifié
+OUT="$(./scripts/check.sh --fast --force 2>&1)"
+echo "$OUT" | grep -q "TDD:"; chk "avis TDD: source sans test -> avis" 0 $?
+echo t >> test/t.c                                    # un test modifié aussi
+OUT="$(./scripts/check.sh --fast --force 2>&1)"
+echo "$OUT" | grep -q "TDD:"; chk "avis TDD: test modifié -> silencieux" 1 $?
+git checkout -q -- src/f2 test/t.c
 
 # Rouge : casser fast
 printf '#!/usr/bin/env bash\necho BOOM\nexit 1\n' > fast.sh

@@ -37,6 +37,10 @@ MODULE_FAST=({{MODULE_FAST_ENTRIES}})
 # (TRIPWIRE_RATCHET_STRICT=1, posé par le hook pre-push).
 TEST_COUNT_CMD="{{TEST_COUNT_CMD}}"
 
+# Avis TDD (optionnel) : formes grep -E des chemins source et test. Vides -> inerte.
+SRC_GREP="{{SRC_GREP}}"
+TEST_GREP="{{TEST_GREP}}"
+
 RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YEL=$'\033[1;33m'; NC=$'\033[0m'
 fail() { echo "${RED}✗ $*${NC}" >&2; }
 ok()   { echo "${GREEN}✓ $*${NC}"; }
@@ -177,6 +181,18 @@ if [ -n "$TEST_COUNT_CMD" ]; then
       else
         info "⚠ ratchet: $TC tests vs $REF attendus — des tests ont disparu ?"
       fi
+    fi
+  fi
+fi
+
+# Avis TDD : du source modifié sans test modifié ? (informatif, jamais bloquant)
+if [ -n "$SRC_GREP" ] && [ -n "$TEST_GREP" ]; then
+  CH="$(git diff --name-only HEAD 2>/dev/null)"
+  if [ -n "$CH" ]; then
+    NSRC="$(printf '%s\n' "$CH" | grep -cE "$SRC_GREP")"
+    NTST="$(printf '%s\n' "$CH" | grep -cE "$TEST_GREP")"
+    if [ "$NSRC" -gt 0 ] 2>/dev/null && [ "$NTST" -eq 0 ] 2>/dev/null; then
+      info "⚠ TDD: $NSRC fichier(s) source modifié(s) sans test modifié — test d'abord ?"
     fi
   fi
 fi
