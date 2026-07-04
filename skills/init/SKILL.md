@@ -74,6 +74,7 @@ mise à jour :
 | v0.5.0 | + hook SessionStart (`cc_session_start.sh` + entrée `settings.json`) ; tampon `# tripwire-template:` dans check.sh |
 | v0.6.0 | check.sh : skip-si-déjà-vert (`--force`), scoping monorepo (`MODULE_FAST` + `--changed`), verrou flock, garde-budget (`TRIPWIRE_FAST_BUDGET`) ; hooks post-edit : debounce (`TRIPWIRE_DEBOUNCE`) + `--changed` ; templates CI à étages (gitlab/github) |
 | v0.7.0 | check.sh : `last-fail.log` (détail du rouge sans re-run) + `history.tsv` (durées par mode) ; nouveaux skills status et bisect (rien à re-scaffolder, mais le check.sh mérite la mise à jour) |
+| v0.8.0 | skills uniquement (mode flotte de status, procédure dialecte divergent d'init) — **aucun template modifié** : un tampon v0.7.0 est à jour |
 
 ## Étape 1 — Détection de stack
 
