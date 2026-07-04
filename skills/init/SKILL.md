@@ -94,9 +94,13 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
 ## Étape 2 — Questions (AskUserQuestion, une à la fois)
 
 1. **Commande fast** — boucle courte, cible < 30 s. Proposer le défaut détecté.
-   Contrainte : la commande doit être relançable telle quelle depuis la racine
-   du repo et ne pas contenir de substitution `$(...)` (elle est ré-affichée
-   dans les messages d'échec). Les `cd` internes sont OK (exécution en subshell).
+   Contraintes : la commande doit être relançable telle quelle depuis la racine
+   du repo, ne pas contenir de substitution `$(...)` (elle est ré-affichée
+   dans les messages d'échec), et **pas de guillemets doubles internes** — le
+   template l'affecte à `FAST_RUN_CMD="…"`, des `"` imbriqués la tronqueraient
+   silencieusement (bash concatène). Utiliser des quotes simples :
+   `nix-shell shell.nix --run 'cargo test'`, pas `--run "cargo test"`.
+   Les `cd` internes sont OK (exécution en subshell).
 2. **Variantes** — liste de cibles de build (équivalent boards/features/targets),
    ou « aucune » (mono-cible). Si variantes : demander la commande de build
    paramétrée par `$v` et la variante par défaut (pour `.tripwire-variant`).
