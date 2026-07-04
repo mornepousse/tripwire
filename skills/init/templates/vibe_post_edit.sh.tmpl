@@ -25,4 +25,15 @@ if [ "$rc" -ne 0 ]; then
   echo "$OUT" | tail -8 >&2
   exit 2   # remonte à Vibe
 fi
+# Garde anti-affaiblissement : perte nette d'assertions vs HEAD dans un test ?
+case "$FP" in
+  {{TEST_PATH_PATTERNS}})
+    REL="${FP#"$REPO"/}"
+    NOLD="$(git show "HEAD:$REL" 2>/dev/null | grep -cE '{{ASSERT_PATTERN}}')"
+    NNEW="$(grep -cE '{{ASSERT_PATTERN}}' "$FP" 2>/dev/null)"
+    if git cat-file -e "HEAD:$REL" 2>/dev/null && [ "$NOLD" -gt "$NNEW" ] 2>/dev/null; then
+      echo "tripwire: $((NOLD-NNEW)) assertion(s) en moins dans $REL vs HEAD — refactor légitime ou affaiblissement ? Rétablir ou justifier." >&2
+    fi
+    ;;
+esac
 exit 0

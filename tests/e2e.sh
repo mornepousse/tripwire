@@ -27,14 +27,18 @@ sed -e 's|{{PROJECT_NAME}}|toy|g' \
 sed -e 's|{{PROJECT_NAME}}|toy|g' -e '/{{ENV_SETUP_BLOCK}}/d' \
     "$PLUGIN/skills/init/templates/pre-push.tmpl" > scripts/hooks/pre-push
 cp "$PLUGIN/skills/init/templates/install-hooks.sh.tmpl" scripts/install-hooks.sh
-sed -e 's|{{WATCHED_PATH_PATTERNS}}|*"/src/"*|g' \
+sed -e 's|{{WATCHED_PATH_PATTERNS}}|*"/src/"*\|*"/test/"*|g' \
+    -e 's|{{TEST_PATH_PATTERNS}}|*"/test/"*|g' \
+    -e 's|{{ASSERT_PATTERN}}|assert|g' \
     "$PLUGIN/skills/init/templates/cc_post_edit.sh.tmpl" > scripts/hooks/cc_post_edit.sh
 sed -e '/{{VARIANT_STATE_BLOCK}}/d' -e '/{{ENV_SETUP_BLOCK}}/d' \
     -e 's|{{ENV_AVAILABLE_TEST}}|true|g' \
     -e 's|{{STOP_CHECK_ARGS}}||g' -e 's|{{STOP_CHECK_DESC}}|complet|g' \
     "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" > scripts/hooks/cc_stop.sh
 # Templates Mistral Vibe (payload: file_path au niveau racine, pas tool_input)
-sed -e 's|{{WATCHED_PATH_PATTERNS}}|*"/src/"*|g' \
+sed -e 's|{{WATCHED_PATH_PATTERNS}}|*"/src/"*\|*"/test/"*|g' \
+    -e 's|{{TEST_PATH_PATTERNS}}|*"/test/"*|g' \
+    -e 's|{{ASSERT_PATTERN}}|assert|g' \
     "$PLUGIN/skills/init/templates/vibe_post_edit.sh.tmpl" > scripts/hooks/vibe_post_edit.sh
 sed -e '/{{VARIANT_STATE_BLOCK}}/d' -e '/{{ENV_SETUP_BLOCK}}/d' \
     -e 's|{{ENV_AVAILABLE_TEST}}|true|g' \
@@ -200,6 +204,21 @@ chk "ratchet: baisse + STRICT -> rouge" 1 $rc
 scripts/hooks/pre-push </dev/null >/dev/null 2>&1
 chk "ratchet: pre-push bloque sur baisse" 1 $?
 echo 7 > ntests.txt   # remettre compte == référence (sections suivantes propres)
+
+# ===== Garde anti-affaiblissement des tests =====
+mkdir -p test
+printf 'assert(a);\nassert(b);\nassert(c);\n' > test/t.c
+git add -A >/dev/null 2>&1 && GITC commit -qm "c6 tests baseline"
+printf 'assert(a);\n' > test/t.c            # 3 -> 1 : perte nette de 2
+OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/test/t.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"; rc=$?
+chk "garde assertions: rc 0 (non bloquant)" 0 $rc
+echo "$OUT" | grep -q "assertion(s) en moins"; chk "garde assertions: contexte émis" 0 $?
+OUT="$(echo '{"file_path":"'"$TMP"'/test/t.c"}' | scripts/hooks/vibe_post_edit.sh 2>&1 >/dev/null)"
+echo "$OUT" | grep -q "assertion(s) en moins"; chk "garde assertions: parité vibe (stderr)" 0 $?
+printf 'assert(a);\nassert(b);\nassert(c);\nassert(d);\n' > test/t.c   # 3 -> 4 : gain
+OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/test/t.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
+echo "$OUT" | grep -q "assertion"; chk "garde assertions: gain -> silencieux" 1 $?
+git checkout -q -- test/t.c
 
 # Rouge : casser fast
 printf '#!/usr/bin/env bash\necho BOOM\nexit 1\n' > fast.sh
