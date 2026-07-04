@@ -13,7 +13,7 @@ description: Use when a tripwire check turned red and nobody knows which commit 
 1. `scripts/check.sh` existe et est exécutable — sinon proposer `/tripwire:init`.
 2. Le rouge est **reproductible maintenant** :
    `./scripts/check.sh --fast --force` (ou `--variant <v>` si le rouge est là).
-   Vert → rien à bisecter, pointer `.git/tripwire/last-fail.log` pour le
+   Vert → rien à bisecter, pointer `"$(git rev-parse --git-dir)/tripwire/last-fail.log"` pour le
    dernier échec historique.
 3. Working tree propre (`git status --porcelain` vide). Sale → proposer
    `git stash` (et le rappeler à la fin) ou abandonner.
@@ -42,7 +42,7 @@ laisser le repo en état bisect.
 ## Rapport
 
 - Le commit fautif : `git show --stat <BAD>` (hash, auteur, date, fichiers).
-- Le lien avec l'échec : `head -2 .git/tripwire/last-fail.log` (commande qui casse).
+- Le lien avec l'échec : `head -2 "$(git rev-parse --git-dir)/tripwire/last-fail.log"` (commande qui casse).
 - Proposer la suite : lire le diff complet, ou `git revert <BAD>`, ou corriger.
 - Si un stash a été fait au début : le rappeler (`git stash pop`).
 
@@ -50,6 +50,11 @@ laisser le repo en état bisect.
 
 - Bisect > ~12 étapes (gros historique) : prévenir de la durée estimée
   (étapes × durée de la phase fast) avant de lancer.
-- `git bisect run` s'arrête sur un code ≥ 128 ou 125 : check.sh n'en émet pas
-  (0/1/2) ; le 2 (mauvais usage) ferait échouer le bisect proprement.
+- Codes de sortie de `git bisect run` : 0 = bon, 1-127 = mauvais (sauf 125 =
+  commit sauté, ≥ 128 = abandon). Un exit 2 de check.sh (mauvais usage) ou 127
+  (script absent) marquerait donc le commit MAUVAIS en silence — résultat
+  potentiellement faux. Si l'historique contient des commits qui prédatent le
+  contrat check.sh (pas de `--fast`, script absent), wrapper l'oracle :
+  `git bisect run bash -c './scripts/check.sh --fast; rc=$?; [ "$rc" -ge 2 ] && exit 125; exit $rc'`
+  (125 = sauter le commit au lieu de le classer).
 - Le commit fautif touche check.sh lui-même : le signaler explicitement.

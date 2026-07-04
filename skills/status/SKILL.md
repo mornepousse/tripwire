@@ -43,7 +43,7 @@ Un stamp `green-full` plus récent que le dernier échec = le rouge a été rés
 
 ### 4. Tendance (history.tsv : epoch<TAB>mode<TAB>durée_s<TAB>rc)
 ```bash
-awk -F'\t' '$2=="fast"{d[++n]=$3} END{if(n){asort(d); print "médiane fast:", d[int((n+1)/2)] "s, dernière:", d[n] "s, runs:", n}}' "$GD/tripwire/history.tsv" 2>/dev/null
+awk -F'\t' '$2=="fast"{d[++n]=$3; last=$3} END{if(n){asort(d); print "médiane fast:", d[int((n+1)/2)] "s, dernière:", last "s, runs:", n}}' "$GD/tripwire/history.tsv" 2>/dev/null
 ```
 (gawk absent : trier avec `sort -n` en pipe.) Signaler une dérive si la
 dernière durée > 2× la médiane ou > `TRIPWIRE_FAST_BUDGET` (défaut 30).
@@ -52,7 +52,7 @@ dernière durée > 2× la médiane ou > `TRIPWIRE_FAST_BUDGET` (défaut 30).
 ```bash
 git log --since='30 days ago' --name-only --pretty=format: 2>/dev/null | grep -v '^$' \
   | cut -d/ -f1 | sort -u        # dossiers actifs (repli: git ls-files si repo < 30 j)
-grep -o 'case "\$FP" in' -A2 scripts/hooks/*post_edit.sh | sed -n '2p'   # patterns surveillés
+grep -h -A1 'case "\$FP" in' scripts/hooks/*post_edit.sh | sed -n '2p'   # la ligne de patterns suit le case
 ```
 Comparer : tout dossier actif contenant du code, absent des patterns, hors
 `docs/`, fichiers racine, `scripts/` et dossiers de config (`.claude/`,
