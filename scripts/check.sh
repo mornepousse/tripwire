@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tripwire-template: v0.7.0
+# tripwire-template: v0.9.0
 # Tripwire anti-régression tripwire — source unique de vérité du "quoi vérifier".
 # Généré par /tripwire:init. Adapter ICI ; les hooks ne font qu'appeler ce script.
 # Modes:
@@ -30,6 +30,16 @@ ALL_VARIANTS=()
 # ou table vide : phase rapide globale. Format "<glob>:<commande>". Exemple :
 #   MODULE_FAST=( "*/services/api/*:cd services/api && npm test -s" )
 MODULE_FAST=()
+
+# Ratchet de tests (optionnel) : commande une-ligne qui imprime le nombre de
+# tests. Vide -> ratchet inerte. Référence committée : .tripwire-testcount
+# (la baisser = diff visible en review). Rouge au pre-push si le compte chute
+# (TRIPWIRE_RATCHET_STRICT=1, posé par le hook pre-push).
+TEST_COUNT_CMD="grep -c 'chk .' tests/e2e.sh"
+
+# Avis TDD (optionnel) : formes grep -E des chemins source et test. Vides -> inerte.
+SRC_GREP="^skills/"
+TEST_GREP="^tests/"
 
 RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YEL=$'\033[1;33m'; NC=$'\033[0m'
 fail() { echo "${RED}✗ $*${NC}" >&2; }
@@ -151,6 +161,30 @@ elif [ "$MODE" = "full" ]; then
   fi
 fi
 
+# ---- Ratchet de tests : le nombre de tests ne baisse jamais en silence ----
+if [ -n "$TEST_COUNT_CMD" ]; then
+  TC="$( (eval "$TEST_COUNT_CMD") 2>/dev/null | tr -d '[:space:]' )"
+  case "$TC" in ''|*[!0-9]*) TC="" ;; esac
+  REF="$(tr -d '[:space:]' < .tripwire-testcount 2>/dev/null)"
+  case "$REF" in ''|*[!0-9]*) REF="" ;; esac
+  if [ -n "$TC" ]; then
+    if [ -z "$REF" ]; then
+      printf '%s\n' "$TC" > .tripwire-testcount 2>/dev/null \
+        && info "ratchet: référence initialisée à $TC tests (.tripwire-testcount — à committer)"
+    elif [ "$TC" -gt "$REF" ]; then
+      printf '%s\n' "$TC" > .tripwire-testcount 2>/dev/null \
+        && info "ratchet: $REF -> $TC tests (.tripwire-testcount mis à jour — à committer)"
+    elif [ "$TC" -lt "$REF" ]; then
+      if [ "${TRIPWIRE_RATCHET_STRICT:-0}" = "1" ]; then
+        fail "ratchet: $TC tests, référence $REF — des tests ont disparu (baisse assumée ? mettre à jour .tripwire-testcount dans un commit)"
+        rc=1
+      else
+        info "⚠ ratchet: $TC tests vs $REF attendus — des tests ont disparu ?"
+      fi
+    fi
+  fi
+fi
+
 echo "========================================"
 if [ "$rc" -eq 0 ]; then
   printf '%s\n' "$FP" > "$STAMP" 2>/dev/null || true
@@ -166,6 +200,18 @@ fi
     { tail -500 "$HIST" > "$HIST.$$" && mv "$HIST.$$" "$HIST"; } || rm -f "$HIST.$$"
   fi
 } 2>/dev/null || true
+
+# Avis TDD : du source modifié sans test modifié ? (informatif, jamais bloquant)
+if [ -n "$SRC_GREP" ] && [ -n "$TEST_GREP" ]; then
+  CH="$(git diff --name-only HEAD 2>/dev/null)"
+  if [ -n "$CH" ]; then
+    NSRC="$(printf '%s\n' "$CH" | grep -cE "$SRC_GREP" || true)"
+    NTST="$(printf '%s\n' "$CH" | grep -cE "$TEST_GREP" || true)"
+    if [ "$NSRC" -gt 0 ] 2>/dev/null && [ "$NTST" -eq 0 ] 2>/dev/null; then
+      info "⚠ TDD: $NSRC fichier(s) source modifié(s) sans test modifié — test d'abord ?"
+    fi
+  fi
+fi
 
 echo "========================================"
 exit "$rc"

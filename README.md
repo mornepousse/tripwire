@@ -42,6 +42,24 @@ tient aussi sur les gros repos grâce à quatre mécanismes du `check.sh` géné
 `/tripwire:init` propose aussi une **CI à étages** (fast sur MR/PR, full sur la
 branche par défaut + nightly) et ajuste le timeout du hook Stop aux builds longs.
 
+## Qualité des tests
+
+Vert ne veut pas dire protégé — trois gardes s'en occupent :
+
+- **Ratchet de tests** : le nombre de tests (compté par `TEST_COUNT_CMD`) ne
+  baisse jamais en silence. La référence vit dans `.tripwire-testcount`,
+  **committé** : baisser le ratchet exige une ligne de diff visible en review.
+  Baisse détectée → avertissement en local, **rouge au pre-push**.
+- **Garde anti-affaiblissement** : une édition qui retire des assertions d'un
+  fichier de test (vs HEAD) injecte un avertissement dans le contexte de
+  l'agent — refactor légitime ou triche, il doit se positionner.
+- **Avis TDD** : du source surveillé modifié sans aucun test modifié → une
+  ligne d'avis avec le verdict du check.
+
+Et pour ce que le mécanique ne voit pas : `/tripwire:test-review` audite la
+qualité sémantique (assertions creuses, happy-path only, tests de mocks,
+couplage, nommage menteur) avec patchs proposés.
+
 ## Tokens & rtk (optionnel)
 
 tripwire est déjà frugal en tokens par design : `check.sh` exécute tests et
@@ -92,6 +110,7 @@ vibe plugin install tripwire@tripwire
 | `/tripwire:release` | Workflow de release : tag git = version, bump semver proposé depuis les commits, check vert obligatoire, sync des manifests de version, glab/gh release |
 | `/tripwire:status` | Diagnostic one-shot : scaffold à jour ? hooks actifs ? dernier vert/rouge ? dérive des durées ? angles morts de surveillance ? Mode `--fleet` : tableau de tous les repos équipés |
 | `/tripwire:bisect` | Localise le commit qui a cassé le check : `git bisect run` avec check.sh comme oracle |
+| `/tripwire:test-review` | Audit sémantique des tests : creux, happy-path only, tests de mocks, couplage, parallel-safety, nommage — findings + patchs |
 
 ## Mettre à jour un projet équipé
 
