@@ -75,6 +75,7 @@ mise à jour :
 | v0.6.0 | check.sh : skip-si-déjà-vert (`--force`), scoping monorepo (`MODULE_FAST` + `--changed`), verrou flock, garde-budget (`TRIPWIRE_FAST_BUDGET`) ; hooks post-edit : debounce (`TRIPWIRE_DEBOUNCE`) + `--changed` ; templates CI à étages (gitlab/github) |
 | v0.7.0 | check.sh : `last-fail.log` (détail du rouge sans re-run) + `history.tsv` (durées par mode) ; nouveaux skills status et bisect (rien à re-scaffolder, mais le check.sh mérite la mise à jour) |
 | v0.8.0 | skills uniquement (mode flotte de status, procédure dialecte divergent d'init) — **aucun template modifié** : un tampon v0.7.0 est à jour |
+| v0.9.0 | qualité des tests — check.sh : ratchet (`TEST_COUNT_CMD` + `.tripwire-testcount` committé, strict au pre-push) + avis TDD (`SRC_GREP`/`TEST_GREP`) ; hooks post-edit : garde anti-affaiblissement (`TEST_PATH_PATTERNS`/`ASSERT_PATTERN`) ; pre-push : `TRIPWIRE_RATCHET_STRICT=1` ; nouveau skill test-review |
 
 ## Étape 1 — Détection de stack
 
@@ -126,6 +127,26 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
 7. **Timeout du hook Stop** — défaut 600 s dans `settings.json`. Si le build
    d'une variante dépasse ~8 min, demander la valeur et remplacer `600` dans le
    fichier généré (sed après copie ; le template reste du JSON valide).
+8. **Ratchet de tests (optionnel)** — commande une-ligne qui imprime le nombre
+   de tests (`{{TEST_COUNT_CMD}}`), ou « aucun » (ratchet inerte). Défauts :
+
+   | Stack | TEST_COUNT_CMD | ASSERT_PATTERN |
+   |---|---|---|
+   | C host (harnais type KaSe) | `grep -rc 'TEST_ASSERT' test/ \| awk -F: '{s+=$2} END{print s+0}'` | `TEST_ASSERT` |
+   | Rust | `grep -rc '#\[test\]' src/ \| awk -F: '{s+=$2} END{print s+0}'` | `assert!\|assert_eq!\|assert_ne!` |
+   | Python | `grep -rc 'def test_' tests/ \| awk -F: '{s+=$2} END{print s+0}'` | `assert` |
+   | Node / Go / autre | demander | demander |
+
+   Mêmes contraintes que la commande fast (pas de `$(...)`, pas de `"`).
+   Si activé : `.tripwire-testcount` est créé au premier check vert et doit
+   être **committé** (comme `.tripwire-variant`) — baisser le ratchet = diff
+   visible en review.
+9. **Chemins de test** — dérivés de la question 3 ou demandés : patterns
+   `case` (`{{TEST_PATH_PATTERNS}}`, ex. `*"/test/"*`), forme grep
+   (`{{TEST_GREP}}`, ex. `^test/`) et forme grep des sources
+   (`{{SRC_GREP}}`, ex. `^src/|^main/`). Vérifier que les chemins de test
+   sont AUSSI dans `{{WATCHED_PATH_PATTERNS}}` (sinon la garde
+   anti-affaiblissement ne voit jamais les fichiers de test).
 
 ## Étape 3 — Génération
 
@@ -168,6 +189,11 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | `{{MODULE_FAST_ENTRIES}}` | monorepo : entrées `"<glob>:<commande>"` séparées par des espaces ; **vide** sinon |
 | `{{CI_IMAGE}}` | image docker CI GitLab (défaut `debian:stable-slim`, à adapter à la toolchain) |
 | `{{DEFAULT_BRANCH}}` | branche par défaut du repo cible (`git symbolic-ref refs/remotes/origin/HEAD`, repli `main`) |
+| `{{TEST_COUNT_CMD}}` | commande de comptage des tests (question 8) ; **vide** si aucun |
+| `{{ASSERT_PATTERN}}` | regex grep -E des assertions de la stack (question 8) ; `assert` par défaut si ratchet actif sans mieux |
+| `{{TEST_PATH_PATTERNS}}` | patterns `case` des fichiers de test (question 9) ; `*"/__jamais__/"*` si aucun |
+| `{{TEST_GREP}}` | forme grep -E des chemins de test ; **vide** si aucun |
+| `{{SRC_GREP}}` | forme grep -E des chemins source surveillés ; **vide** si aucun |
 
 ### Adaptations mono-cible
 - `ALL_VARIANTS=()` vide ; le mode `--variant` reste dans check.sh (inerte, ne pas le retirer).
