@@ -78,6 +78,21 @@ mise à jour :
 | v0.9.0 | qualité des tests — check.sh : ratchet (`TEST_COUNT_CMD` + `.tripwire-testcount` committé, strict au pre-push) + avis TDD (`SRC_GREP`/`TEST_GREP`) ; hooks post-edit : garde anti-affaiblissement (`TEST_PATH_PATTERNS`/`ASSERT_PATTERN`) ; pre-push : `TRIPWIRE_RATCHET_STRICT=1` ; nouveau skill test-review |
 | v0.10.0 | doctrine économie de modèles — section « Économie de modèles » dans les sections MD scaffoldées ; gen-agents : `model: sonnet` épinglé sur les agents de jugement ; check.sh **inchangé** (tampon v0.9.0 valide) — re-scaffold léger : section MD + regénérer les agents |
 
+### Cohabitation avec l'outillage tiers (pre-commit, TDD Guard…)
+
+- Repo avec **pre-commit/husky/lefthook** déjà en place : ne PAS s'approprier
+  `core.hooksPath` — insérer un hook `pre-push` dans LEUR config qui appelle
+  `./scripts/check.sh` (l'invariant survit : tout appelle check.sh). Le
+  signaler dans le récap.
+- Proposer (optionnel, question) **TDD Guard** pour la discipline TDD
+  par-édition — il cohabite avec les hooks tripwire (le merge préserve les
+  entrées étrangères). **Règle sécurité avant tout greffon tiers** : passe de
+  vetting (lire le script du hook, identifier ce qui quitte la machine —
+  TDD Guard envoie le code à une API de validation —, scripts postinstall),
+  **version épinglée exacte**, **jamais d'auto-update** : toute montée de
+  version = review du diff. Ne jamais installer un greffon tiers sans l'accord
+  explicite de l'utilisateur après lui avoir présenté cette surface.
+
 ## Étape 1 — Détection de stack
 
 Chercher les marqueurs à la racine et proposer des défauts :

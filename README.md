@@ -60,6 +60,40 @@ Et pour ce que le mécanique ne voit pas : `/tripwire:test-review` audite la
 qualité sémantique (assertions creuses, happy-path only, tests de mocks,
 couplage, nommage menteur) avec patchs proposés.
 
+## S'adosser à tripwire (cohabitation)
+
+Les briques de tripwire — `check.sh` (oracle 0/1), les slots de hooks (le merge
+de `settings.json` préserve les hooks étrangers), la phase fast, la CI à
+étages — sont des points d'ancrage pour l'outillage tiers :
+
+| Outil | Point d'ancrage | Intégration |
+|---|---|---|
+| [TDD Guard](https://github.com/nizos/tdd-guard) | slot hooks (PreToolUse) | Discipline TDD *par édition* en amont ; tripwire reste l'oracle en aval (Stop/pre-push) + ratchet. Installer à côté — le merge d'init le préserve. ⚠ envoie le code édité à un modèle de validation via API |
+| pre-commit / lefthook | l'oracle | Leur config appelle `./scripts/check.sh --fast` — l'invariant survit. Un seul propriétaire du routage : si le repo a déjà pre-commit, tripwire s'y insère comme entrée au lieu de posséder `core.hooksPath` |
+| [Betterer](https://phenomnomnominal.github.io/betterer/) (JS) | la phase fast | `betterer ci` dans `FAST_CMD` = ratchet multi-métriques committé, son rouge devient le rouge du check |
+| Mutation testing (cargo-mutants, mutmut, Stryker) | CI à étages (slot nightly) | La « preuve de morsure » systématisée, hors boucle locale |
+
+### Sécurité des greffons tiers (NON NÉGOCIABLE)
+
+Un hook tiers s'exécute **avec vos permissions, dans votre session, à chaque
+édition** — c'est une dépendance à accès shell, pas un gadget. Avant d'adosser
+quoi que ce soit :
+
+1. **Passe de vetting** : lire le script de hook lui-même (pas le README) ;
+   identifier ce qui **quitte la machine** (ex. TDD Guard envoie le code à une
+   API de validation) ; vérifier les scripts `postinstall` npm et les
+   dépendances transitives ; mainteneur, activité, licence.
+2. **Épingler la version exacte** : version npm exacte (pas de `^`/`~`),
+   `rev:` en SHA pour pre-commit, commit épinglé pour les plugins de
+   marketplace. Le lockfile est committé.
+3. **Jamais de mise à jour automatique** : toute montée de version passe par
+   une **review du diff** (le vecteur malware classique est la mise à jour
+   compromise d'un paquet sain — la version que vous avez auditée n'est pas
+   celle que l'update installera). Même discipline que le ratchet : un
+   changement de version = une ligne de diff assumée en review.
+4. En organisation : `strictKnownMarketplaces` (voir section Équipes) pour
+   borner les sources installables.
+
 ## Économie de modèles (haiku sans hallucination)
 
 L'oracle mécanique de tripwire (check.sh, ratchet, preuve de morsure) rend les
