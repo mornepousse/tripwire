@@ -132,12 +132,12 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
 
    | Stack | TEST_COUNT_CMD | ASSERT_PATTERN |
    |---|---|---|
-   | C host (harnais type KaSe) | `grep -rc 'TEST_ASSERT' test/ \| awk -F: '{s+=$2} END{print s+0}'` | `TEST_ASSERT` |
-   | Rust | `grep -rc '#\[test\]' src/ \| awk -F: '{s+=$2} END{print s+0}'` | `assert!\|assert_eq!\|assert_ne!` |
-   | Python | `grep -rc 'def test_' tests/ \| awk -F: '{s+=$2} END{print s+0}'` | `assert` |
+   | C host (harnais type KaSe) | `grep -rho 'TEST_ASSERT' test/ \| wc -l` | `TEST_ASSERT` |
+   | Rust | `grep -rho '#\[test\]' src/ \| wc -l` | `assert!\|assert_eq!\|assert_ne!` |
+   | Python | `grep -rho 'def test_' tests/ \| wc -l` | `assert` |
    | Node / Go / autre | demander | demander |
 
-   Mêmes contraintes que la commande fast (pas de `$(...)`, pas de `"`).
+   Mêmes contraintes que la commande fast (pas de `$(...)`, pas de `"`), et **pas de `$` non échappé** — `TEST_COUNT_CMD`, `SRC_GREP` et `TEST_GREP` sont assignés en double quotes dans le template, un `$2` d'awk y serait expansé (`set -u` → crash). Pas de quote simple dans `ASSERT_PATTERN` (injecté entre quotes simples dans les hooks).
    Si activé : `.tripwire-testcount` est créé au premier check vert et doit
    être **committé** (comme `.tripwire-variant`) — baisser le ratchet = diff
    visible en review.

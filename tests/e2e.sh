@@ -6,6 +6,7 @@ PLUGIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 export TRIPWIRE_DEBOUNCE=0   # les tests enchaînent les hooks plus vite que le debounce réel
+export TRIPWIRE_RATCHET_STRICT=0   # un pre-push parent ne doit pas rendre les toys stricts
 cd "$TMP"
 git init -q -b main
 
@@ -203,6 +204,9 @@ OUT="$(TRIPWIRE_RATCHET_STRICT=1 ./scripts/check.sh --fast --force 2>&1)"; rc=$?
 chk "ratchet: baisse + STRICT -> rouge" 1 $rc
 scripts/hooks/pre-push </dev/null >/dev/null 2>&1
 chk "ratchet: pre-push bloque sur baisse" 1 $?
+./scripts/check.sh --force >/dev/null 2>&1          # full NON-strict : vert (avertissement) + stampe green-full
+scripts/hooks/pre-push </dev/null >/dev/null 2>&1   # même état : le strict ne doit PAS réutiliser ce stamp
+chk "ratchet: strict ne réutilise pas un stamp non-strict" 1 $?
 echo 7 > ntests.txt   # remettre compte == référence (sections suivantes propres)
 
 # ===== Garde anti-affaiblissement des tests =====

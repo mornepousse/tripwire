@@ -103,6 +103,7 @@ fingerprint() {
   } | git hash-object --stdin 2>/dev/null || date +%s.%N
 }
 KEY="$MODE${SINGLE_VARIANT:+-$SINGLE_VARIANT}$SCOPE_KEY"
+[ "${TRIPWIRE_RATCHET_STRICT:-0}" = "1" ] && KEY="$KEY-strict"   # un run strict ne skippe que contre un vert strict
 STAMP="$GITDIR/tripwire/green-$KEY"
 FP="$(fingerprint)"
 if [ "$FORCE" != "1" ] && [ -f "$STAMP" ] && [ "$(cat "$STAMP" 2>/dev/null)" = "$FP" ]; then
