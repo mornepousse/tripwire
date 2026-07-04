@@ -18,6 +18,35 @@ Lecture seule : les patchs sont proposés, jamais appliqués sans accord.
 Toujours lire le **code sous test**, pas seulement le test : les points 2 et 4
 de la grille sont invérifiables autrement.
 
+## Protocole gros scope (> ~10 fichiers de test) — fan-out économique
+
+Le coût d'un gros audit est dans la **lecture**, pas le jugement. Deux étages :
+
+1. **Extracteurs** (un subagent par lot de 3-5 fichiers, **modèle économique**
+   type haiku — c'est sûr car ils n'émettent AUCUN verdict) : chaque extracteur
+   produit une fiche par fichier au format imposé, **chaque affirmation citée
+   `fichier:ligne`** :
+   - quel(s) `.c`/module réel(s) ce test compile/linke (d'après le CMakeLists
+     ou l'équivalent du harnais) — ou « aucun : logique locale/copiée » ;
+   - liste brute des assertions (pattern + ligne) ;
+   - `#define`/constantes recopiés du code de prod (citer les deux côtés) ;
+   - fonctions de prod appelées vs réimplémentées localement.
+2. **Juge unique** (modèle fort — jugement = jamais de modèle économique) :
+   rend le verdict de la grille depuis les fiches, en n'ouvrant lui-même que
+   les fichiers où une fiche est ambiguë ou suspecte.
+
+Règle de sûreté : une extraction **citée** est vérifiable (le juge ou un grep
+recoupe la ligne) ; un **jugement** halluciné n'est rattrapé par rien. Les
+extracteurs collectent, le juge conclut — jamais l'inverse. Toute fiche sans
+citations est rejetée et re-demandée.
+
+Économie d'entrée : les extracteurs travaillent en **greps/sed ciblés**
+(`grep -n 'assert' f.c`, `sed -n '10,30p'`) plutôt qu'en lecture intégrale —
+le gros du coût d'un extracteur est ce qu'il lit, pas ce qu'il écrit. Si
+[rtk](https://github.com/rtk-ai/rtk) intercepte le shell, ces sorties sont en
+plus compressées de 60-90 % : le tandem extracteur-économique × rtk divise le
+coût de lecture d'un facteur 5 à 10 vs un juge fort qui lirait tout.
+
 ## Grille d'audit (chaque finding : fichier:ligne + preuve + patch proposé)
 
 1. **Assertions creuses** — toujours-vraies (`assert(true)`, comparaison d'une
