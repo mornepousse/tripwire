@@ -1,6 +1,6 @@
 ---
 name: status
-description: Use when checking the health of a tripwire-equipped project — scaffold up to date? git/platform hooks active? last check green and when? fast-phase duration drift? watched-path blind spots? Trigger on "/tripwire:status", "état du tripwire", "diagnostic tripwire", "le tripwire est à jour ?".
+description: Use when checking the health of a tripwire-equipped project — scaffold up to date? git/platform hooks active? last check green and when? fast-phase duration drift? watched-path blind spots? Also fleet mode across all equipped repos. Trigger on "/tripwire:status", "état du tripwire", "diagnostic tripwire", "le tripwire est à jour ?", "/tripwire:status --fleet", "état de la flotte tripwire".
 ---
 
 # tripwire:status — diagnostic one-shot
@@ -64,3 +64,32 @@ Comparer : tout dossier actif contenant du code, absent des patterns, hors
 Un tableau (section → état ✓/⚠/✗ → détail court) suivi de 0 à 3 **actions
 recommandées** concrètes (commande exacte ou skill à lancer). Ne pas inventer
 de problème : sections vides = « rien à signaler ».
+
+## Mode flotte (`--fleet` / « état de la flotte »)
+
+Vue d'ensemble de TOUS les repos équipés, au lieu du diagnostic profond d'un
+seul. Racine du scan : le dossier parent du repo courant (ou le chemin donné
+par l'utilisateur). Toujours en lecture seule.
+
+```bash
+ROOT="$(dirname "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
+for d in "$ROOT"/*/; do
+  [ -f "$d/scripts/check.sh" ] || continue
+  # v suivi d'un chiffre — sinon le « v » de « vérité » matche sur les scaffolds pré-tampon
+  TAMPON="$(sed -n '2p' "$d/scripts/check.sh" | grep -o 'v[0-9][0-9.]*' || echo 'pré-v0.5.0')"
+  GD="$(git -C "$d" rev-parse --absolute-git-dir 2>/dev/null)"
+  # pas de glob green-* : un glob vide est une erreur sous zsh
+  LASTGREEN="$(ls -t "$GD/tripwire" 2>/dev/null | grep '^green-' | head -1)"
+  [ -n "$LASTGREEN" ] && LASTGREEN="$(date -r "$GD/tripwire/$LASTGREEN" '+%F %H:%M' 2>/dev/null)"
+  LASTFAIL="$(date -r "$GD/tripwire/last-fail.log" '+%F %H:%M' 2>/dev/null || true)"
+  BRANCH="$(git -C "$d" branch --show-current 2>/dev/null)"
+  DIRTY="$(git -C "$d" status --porcelain 2>/dev/null | head -1)"
+  echo "$(basename "$d")|$TAMPON|$BRANCH${DIRTY:+ (dirty)}|vert:${LASTGREEN:--}|rouge:${LASTFAIL:--}"
+done
+```
+
+Rapport : un tableau **repo | scaffold | branche | dernier vert | dernier
+rouge**, avec la version courante du plugin en référence. Terminer par les
+actions : repos en retard de version → `/tripwire:init` dans chacun (citer
+l'écart via l'historique des templates) ; repo sans stamp vert récent →
+suggérer d'y lancer `./scripts/check.sh`.
