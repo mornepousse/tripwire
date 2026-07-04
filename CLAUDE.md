@@ -29,6 +29,12 @@ Tout nouveau comportement des templates (mode de check.sh, garde de hook,
 dégradation) : assertion e2e écrite **d'abord** dans `tests/e2e.sh`, rouge avant
 l'implémentation, verte après.
 
+### Économie de modèles (subagents)
+- Haiku OK : transcription de code spécifié, extraction citée (`fichier:ligne`)
+  — e2e/lint rattrapent la dérive.
+- Jamais sous sonnet : review, audit, debug, écriture d'assertions (une
+  tautologie passe l'oracle au vert). Revue finale : le plus fort disponible.
+
 ## Release
 
 Workflow piloté par `/tripwire:release`. La version est portée par le tag git
