@@ -185,18 +185,6 @@ if [ -n "$TEST_COUNT_CMD" ]; then
   fi
 fi
 
-# Avis TDD : du source modifié sans test modifié ? (informatif, jamais bloquant)
-if [ -n "$SRC_GREP" ] && [ -n "$TEST_GREP" ]; then
-  CH="$(git diff --name-only HEAD 2>/dev/null)"
-  if [ -n "$CH" ]; then
-    NSRC="$(printf '%s\n' "$CH" | grep -cE "$SRC_GREP")"
-    NTST="$(printf '%s\n' "$CH" | grep -cE "$TEST_GREP")"
-    if [ "$NSRC" -gt 0 ] 2>/dev/null && [ "$NTST" -eq 0 ] 2>/dev/null; then
-      info "⚠ TDD: $NSRC fichier(s) source modifié(s) sans test modifié — test d'abord ?"
-    fi
-  fi
-fi
-
 echo "========================================"
 if [ "$rc" -eq 0 ]; then
   printf '%s\n' "$FP" > "$STAMP" 2>/dev/null || true
@@ -212,6 +200,18 @@ fi
     { tail -500 "$HIST" > "$HIST.$$" && mv "$HIST.$$" "$HIST"; } || rm -f "$HIST.$$"
   fi
 } 2>/dev/null || true
+
+# Avis TDD : du source modifié sans test modifié ? (informatif, jamais bloquant)
+if [ -n "$SRC_GREP" ] && [ -n "$TEST_GREP" ]; then
+  CH="$(git diff --name-only HEAD 2>/dev/null)"
+  if [ -n "$CH" ]; then
+    NSRC="$(printf '%s\n' "$CH" | grep -cE "$SRC_GREP" || true)"
+    NTST="$(printf '%s\n' "$CH" | grep -cE "$TEST_GREP" || true)"
+    if [ "$NSRC" -gt 0 ] 2>/dev/null && [ "$NTST" -eq 0 ] 2>/dev/null; then
+      info "⚠ TDD: $NSRC fichier(s) source modifié(s) sans test modifié — test d'abord ?"
+    fi
+  fi
+fi
 
 echo "========================================"
 exit "$rc"
