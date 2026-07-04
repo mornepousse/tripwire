@@ -10,6 +10,9 @@ Source unique de vérité : `scripts/check.sh` (le plugin mange sa propre nourri
 - `./scripts/check.sh` — fast + `tests/e2e.sh` (instancie les templates sur un repo jouet, mono-cible + multi-variantes, et vérifie vert/rouge/hooks/dégradation)
 - Skip-si-déjà-vert : état inchangé depuis le dernier vert → sortie immédiate ;
   `--force` (ou `TRIPWIRE_FORCE=1`) pour relancer quand même.
+- Ratchet : le nombre d'assertions `chk` d'e2e est cliqueté dans
+  `.tripwire-testcount` (committé) — il ne baisse jamais sans un diff assumé ;
+  rouge au pre-push si baisse.
 
 **Activation des hooks git (une fois par clone)** :
 ```bash

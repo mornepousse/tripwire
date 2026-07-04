@@ -1,6 +1,6 @@
 {
   "name": "tripwire",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Scaffolde un pipeline anti-régression : check.sh source unique de vérité + hooks git + hooks Claude Code + section CLAUDE.md + agents spécialisés + workflow de release. Extrait du workflow KaSe_firmware.",
   "author": {
     "name": "Mae PUGIN"
