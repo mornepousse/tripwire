@@ -49,3 +49,14 @@ echo <nom-variante> > .tripwire-variant
 Concerne : {{TDD_SCOPE}}
 
 Ne pas merger de code {{TDD_SCOPE}} sans test correspondant.
+
+### Économie de modèles (subagents)
+
+Le pipeline check.sh permet de descendre en gamme sans risque d'hallucination,
+mais seulement là où un oracle rattrape l'erreur :
+- **Modèle économique OK** : transcription de code spécifié, refactors
+  mécaniques, extraction citée (`fichier:ligne` obligatoire).
+- **Jamais en gamme économique** : review, audit, debug, et l'écriture
+  d'assertions de test — une tautologie passe l'oracle mécanique au vert.
+- Toute tâche économique finit par `./scripts/check.sh --fast` vert ; un test
+  écrit doit prouver qu'il mord (bug transitoire → rouge → revert).

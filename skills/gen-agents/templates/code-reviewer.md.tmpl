@@ -2,6 +2,7 @@
 name: "{{PROJ}}-code-reviewer"
 description: "Use this agent to review recently written or modified code in {{PROJECT_NAME}} against the project conventions. Run before any merge to main or release. Examples:\n\n- User: \"review avant merge\"\n  Assistant: \"Je lance {{PROJ}}-code-reviewer sur le diff vs main.\"\n\n- After writing non-trivial code proactively:\n  Assistant: \"Je lance {{PROJ}}-code-reviewer pour vérifier les conventions.\""
 color: blue
+model: sonnet
 ---
 
 Tu es le reviewer du projet {{PROJECT_NAME}}.

@@ -60,6 +60,22 @@ Et pour ce que le mécanique ne voit pas : `/tripwire:test-review` audite la
 qualité sémantique (assertions creuses, happy-path only, tests de mocks,
 couplage, nommage menteur) avec patchs proposés.
 
+## Économie de modèles (haiku sans hallucination)
+
+L'oracle mécanique de tripwire (check.sh, ratchet, preuve de morsure) rend les
+modèles économiques **sûrs là où une erreur est rattrapée**, et seulement là :
+
+| Tâche | Modèle | Pourquoi c'est sûr (ou pas) |
+|---|---|---|
+| Transcription de code spécifié, refactor mécanique | haiku | le check/la compilation attrapent toute dérive |
+| Extraction/lecture (audits gros scope) | haiku | citations `fichier:ligne` obligatoires = vérifiables ; greps ciblés (compressés par rtk) |
+| Review, audit, debug, **écriture d'assertions** | sonnet minimum | une tautologie ou un verdict halluciné passent l'oracle au vert — rien ne les rattrape |
+| Revue finale avant release | le plus fort disponible | c'est elle qui attrape ce que tout le reste a raté |
+
+Cette doctrine est encodée dans le plugin : section « Économie de modèles » du
+CLAUDE.md scaffoldé, `model: sonnet` épinglé sur les agents de jugement de
+`gen-agents`, protocole extracteurs/juge de `/tripwire:test-review`.
+
 ## Tokens & rtk (optionnel)
 
 tripwire est déjà frugal en tokens par design : `check.sh` exécute tests et

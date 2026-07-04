@@ -48,10 +48,16 @@ templates de `templates/` : `test-author`, `code-reviewer`, `debugger`,
    qu'inventer.
 3. **Générer** `{AGENTS_DIR}/<proj>-<role>.md` pour chaque agent choisi.
    Ne pas écraser un agent existant sans accord explicite.
-   **Adaptation plateforme** : les champs `color:` et `memory:` du frontmatter
-   sont spécifiques à Claude Code — si PLATEFORME = vibe, supprimer ces lignes
-   (et la section « Mémoire persistante » du corps pour `maintainer` et
-   `security-auditor`).
+   **Adaptation plateforme** : les champs `color:`, `model:` et `memory:` du
+   frontmatter sont spécifiques à Claude Code — si PLATEFORME = vibe, supprimer
+   ces lignes (et la section « Mémoire persistante » du corps pour `maintainer`
+   et `security-auditor`).
+   **Économie de modèles** : `test-author`, `code-reviewer` et `maintainer`
+   sont épinglés `model: sonnet` (jugement = plancher sonnet ; épingler évite
+   d'hériter d'un modèle de session plus coûteux sans nécessité). `debugger`
+   et `security-auditor` héritent de la session (raisonnement dur). Jamais de
+   modèle économique (haiku) sur un agent de jugement — une hallucination de
+   verdict n'est rattrapée par aucun oracle.
 4. **Vérifier** : frontmatter présent (`name`, `description` avec exemples),
    placeholders tous remplis (`grep -n '{{' {AGENTS_DIR}/<proj>-*.md` ne
    doit rien retourner) ; et valider le YAML du frontmatter de chaque agent

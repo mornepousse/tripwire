@@ -21,3 +21,15 @@ Source unique de vérité : `scripts/check.sh`.
 Toute nouvelle fonction de logique pure ({{TDD_SCOPE}}) : test écrit **d'abord**,
 ajouté à la suite de tests de la phase rapide. Le test doit être rouge avant
 l'implémentation, vert après, et parallel-safe (pas d'état global muté).
+
+### Économie de modèles (subagents)
+Le pipeline check.sh permet de descendre en gamme SANS risque d'hallucination,
+mais seulement là où un oracle rattrape l'erreur :
+- **Modèle économique (haiku) OK** : transcription de code déjà spécifié,
+  refactors mécaniques, extraction citée (`fichier:ligne` obligatoire) — le
+  check, la compilation ou le recoupement des citations attrapent la dérive.
+- **Jamais en dessous de sonnet** : review, audit, debug, **et l'écriture
+  d'assertions de test** — une assertion tautologique ou un verdict halluciné
+  passent l'oracle mécanique au vert. Le jugement ne descend pas en gamme.
+- Toute tâche économique DOIT finir par `./scripts/check.sh --fast` vert, et
+  un test rewiré/écrit DOIT prouver qu'il mord (bug transitoire → rouge → revert).
