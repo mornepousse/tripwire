@@ -77,6 +77,7 @@ mise à jour :
 | v0.8.0 | skills uniquement (mode flotte de status, procédure dialecte divergent d'init) — **aucun template modifié** : un tampon v0.7.0 est à jour |
 | v0.9.0 | qualité des tests — check.sh : ratchet (`TEST_COUNT_CMD` + `.tripwire-testcount` committé, strict au pre-push) + avis TDD (`SRC_GREP`/`TEST_GREP`) ; hooks post-edit : garde anti-affaiblissement (`TEST_PATH_PATTERNS`/`ASSERT_PATTERN`) ; pre-push : `TRIPWIRE_RATCHET_STRICT=1` ; nouveau skill test-review |
 | v0.10.0 | doctrine économie de modèles — section « Économie de modèles » dans les sections MD scaffoldées ; gen-agents : `model: sonnet` épinglé sur les agents de jugement ; check.sh **inchangé** (tampon v0.9.0 valide) — re-scaffold léger : section MD + regénérer les agents |
+| v0.10.1 | docs uniquement (carte de cohabitation + doctrine sécurité des greffons tiers) — **rien à re-scaffolder** |
 
 ### Cohabitation avec l'outillage tiers (pre-commit, TDD Guard…)
 
