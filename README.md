@@ -1,5 +1,7 @@
 # tripwire
 
+*[English version](README.en.md)*
+
 Plugin **multi-plateforme** (Claude Code et Mistral Vibe) qui scaffolde un pipeline anti-régression dans n'importe quel repo.
 Extrait du workflow du projet KaSe_firmware.
 
