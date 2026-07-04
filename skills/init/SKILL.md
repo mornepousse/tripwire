@@ -44,6 +44,27 @@ Si `scripts/check.sh` existe déjà dans le repo cible :
   jour le tampon.
 - Ne jamais écraser un `check.sh` existant sans accord explicite.
 
+### Cas particulier : dialecte divergent (scaffold ancêtre ou modifié)
+
+Un vieux scaffold peut avoir des **noms de modes différents** (ex. KaSe :
+`--host-only`/`--board` au lieu de `--fast`/`--variant`), un **fichier de
+variante custom** (`.kase-board`), un **préambule projet** (export ccache…) ou
+des **hooks maison** hors tripwire dans `settings.json`. Avant de proposer la
+mise à jour :
+1. `grep -rl` les noms de modes dans la CI, les agents (`.claude/agents/`),
+   les docs et le {CONFIG_MD} du repo — mesurer ce qui casserait.
+2. Proposer (AskUserQuestion) : **standard + alias** (recommandé — template
+   à jour, anciens modes acceptés en alias dans le `case`, fichier de variante
+   custom conservé partout où les templates lisent `.tripwire-variant`) /
+   backport dans le dialecte (pas de standardisation, upgrades futurs
+   manuels) / migration complète (mettre aussi à jour CI, agents et docs).
+3. En standard + alias : réinjecter le préambule projet après le `cd`,
+   ajouter les alias dans le `case` (`--ancien|--standard)`), documenter les
+   alias dans l'en-tête, et adapter `{{VARIANT_STATE_BLOCK}}` /
+   `{{SESSION_VARIANT_LINE}}` au fichier de variante custom.
+4. Les hooks maison de `settings.json` et les scripts non-tripwire de
+   `scripts/hooks/` ne sont JAMAIS touchés.
+
 ### Historique des templates
 
 | Version | Changements nécessitant une mise à jour du scaffold |
