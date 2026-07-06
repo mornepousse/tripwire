@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "tripwire",
-      "description": "Pipeline anti-régression réutilisable : check.sh + hooks git + hooks Claude Code + section CLAUDE.md + agents + release.",
+      "description": "Reusable anti-regression pipeline: check.sh + git hooks + agent hooks + test ratchet + CLAUDE.md section + agents + release.",
       "source": "./",
       "version": "0.10.1"
     }

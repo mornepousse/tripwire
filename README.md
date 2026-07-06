@@ -1,153 +1,144 @@
 # tripwire
 
-*[English version](README.en.md)*
+*[Version française](README.fr.md)*
 
-Plugin **multi-plateforme** (Claude Code et Mistral Vibe) qui scaffolde un pipeline anti-régression dans n'importe quel repo.
-Extrait du workflow du projet KaSe_firmware.
+**Multi-platform** plugin (Claude Code and Mistral Vibe) that scaffolds an anti-regression pipeline into any repo.
+Extracted from the KaSe_firmware project's workflow.
 
-## L'invariant
+## The invariant
 
-> Un seul script (`scripts/check.sh`) définit ce que « vert » veut dire.
-> Chaque garde-fou (hook git, hook de plateforme, CI) ne fait que l'appeler
-> avec un mode adapté à son budget temps.
+> A single script (`scripts/check.sh`) defines what "green" means.
+> Every guard (git hook, platform hook, CI) merely calls it
+> with a mode that fits its time budget.
 
-- `check.sh --fast` — boucle courte (< 30 s), lancée après chaque édition surveillée
-- `check.sh --variant <name>` — fast + build d'une variante (au hook Stop/onStop de la plateforme)
-- `check.sh` — full : fast + toutes les variantes (pre-push, CI)
-- Dégradation gracieuse : env de build absent → retombe sur `--fast` au lieu de bloquer
+- `check.sh --fast` — short loop (< 30 s), runs after every watched edit
+- `check.sh --variant <name>` — fast + one variant build (at the platform's Stop/onStop hook)
+- `check.sh` — full: fast + all variants (pre-push, CI)
+- Graceful degradation: build env missing → falls back to `--fast` instead of blocking
 
-## Gros projets
+## Large projects
 
-Le contrat « fast < 30 s à chaque édition, check du variant à chaque Stop »
-tient aussi sur les gros repos grâce à quatre mécanismes du `check.sh` généré :
+The "fast < 30 s on every edit, variant check on every Stop" contract holds on
+large repos too, thanks to five mechanisms in the generated `check.sh`:
 
-- **Skip-si-déjà-vert** : empreinte de l'état du repo (HEAD + diff + fichiers
-  non trackés) mémorisée par mode dans `.git/tripwire/` ; si rien n'a bougé
-  depuis le dernier vert, le check sort immédiatement. `--force` ou
-  `TRIPWIRE_FORCE=1` pour outrepasser (ex. toolchain mise à jour).
-- **Scoping monorepo** : table `MODULE_FAST=("glob:commande" …)` dans check.sh ;
-  les hooks passent le fichier édité (`--changed`) et la phase rapide ne lance
-  que les tests du module touché.
-- **Verrou + debounce** : `flock` empêche deux checks concurrents (le second
-  sort poliment) ; les hooks post-édition ne relancent pas de check à moins de
-  `TRIPWIRE_DEBOUNCE` secondes du précédent (défaut 10).
-- **Garde-budget** : si la phase rapide dérive au-delà de `TRIPWIRE_FAST_BUDGET`
-  secondes (défaut 30), check.sh l'annonce — le tripwire surveille son propre
-  contrat.
-- **Échec lisible sans re-run** : la sortie du dernier rouge est capturée dans
-  `.git/tripwire/last-fail.log` (l'assistant la lit au lieu de relancer la
-  commande) ; chaque passage réel logge sa durée dans `history.tsv` —
-  `/tripwire:status` en tire la tendance.
+- **Skip-if-already-green**: a fingerprint of the repo state (HEAD + diff +
+  untracked files) is stored per mode in `.git/tripwire/`; if nothing moved
+  since the last green run, the check exits immediately. `--force` or
+  `TRIPWIRE_FORCE=1` to override (e.g. after a toolchain update).
+- **Monorepo scoping**: a `MODULE_FAST=("glob:command" …)` table in check.sh;
+  hooks pass the edited file (`--changed`) and the fast phase only runs the
+  touched module's tests.
+- **Lock + debounce**: `flock` prevents concurrent checks (the second one
+  exits politely); post-edit hooks won't re-check within `TRIPWIRE_DEBOUNCE`
+  seconds of the previous run (default 10).
+- **Budget guard**: if the fast phase drifts past `TRIPWIRE_FAST_BUDGET`
+  seconds (default 30), check.sh says so — the tripwire watches its own
+  contract.
+- **Readable failure without re-running**: the last red run's output is
+  captured in `.git/tripwire/last-fail.log` (the assistant reads it instead
+  of re-running the command); every real run logs its duration to
+  `history.tsv` — `/tripwire:status` derives the trend.
 
-`/tripwire:init` propose aussi une **CI à étages** (fast sur MR/PR, full sur la
-branche par défaut + nightly) et ajuste le timeout du hook Stop aux builds longs.
+`/tripwire:init` can also generate a **staged CI** (fast on MR/PR, full on the
+default branch + nightly) and tunes the Stop hook timeout for long builds.
 
-## Qualité des tests
+## Test quality
 
-Vert ne veut pas dire protégé — trois gardes s'en occupent :
+Green does not mean protected — three guards take care of that:
 
-- **Ratchet de tests** : le nombre de tests (compté par `TEST_COUNT_CMD`) ne
-  baisse jamais en silence. La référence vit dans `.tripwire-testcount`,
-  **committé** : baisser le ratchet exige une ligne de diff visible en review.
-  Baisse détectée → avertissement en local, **rouge au pre-push**.
-- **Garde anti-affaiblissement** : une édition qui retire des assertions d'un
-  fichier de test (vs HEAD) injecte un avertissement dans le contexte de
-  l'agent — refactor légitime ou triche, il doit se positionner.
-- **Avis TDD** : du source surveillé modifié sans aucun test modifié → une
-  ligne d'avis avec le verdict du check.
+- **Test ratchet**: the number of tests (counted by `TEST_COUNT_CMD`) never
+  silently decreases. The reference lives in `.tripwire-testcount`,
+  **committed**: lowering the ratchet requires a visible diff line in review.
+  A decrease → warning locally, **red at pre-push**.
+- **Anti-weakening guard**: an edit that removes assertions from a test file
+  (vs HEAD) injects a warning into the agent's context — legitimate refactor
+  or cheating, it has to take a stance.
+- **TDD advisory**: watched source modified without any test modified → one
+  advisory line with the check's verdict.
 
-Et pour ce que le mécanique ne voit pas : `/tripwire:test-review` audite la
-qualité sémantique (assertions creuses, happy-path only, tests de mocks,
-couplage, nommage menteur) avec patchs proposés.
+And for what mechanics cannot see: `/tripwire:test-review` audits semantic
+quality (hollow assertions, happy-path-only, mock-testing, coupling, lying
+names) with proposed patches.
 
-## S'adosser à tripwire (cohabitation)
+## Leaning on tripwire (cohabitation)
 
-Les briques de tripwire — `check.sh` (oracle 0/1), les slots de hooks (le merge
-de `settings.json` préserve les hooks étrangers), la phase fast, la CI à
-étages — sont des points d'ancrage pour l'outillage tiers :
+tripwire's bricks — `check.sh` (a 0/1 oracle), the hook slots (the
+`settings.json` merge preserves foreign hooks), the fast phase, the staged
+CI — are anchor points for third-party tooling:
 
-| Outil | Point d'ancrage | Intégration |
+| Tool | Anchor point | Integration |
 |---|---|---|
-| [TDD Guard](https://github.com/nizos/tdd-guard) | slot hooks (PreToolUse) | Discipline TDD *par édition* en amont ; tripwire reste l'oracle en aval (Stop/pre-push) + ratchet. Installer à côté — le merge d'init le préserve. ⚠ envoie le code édité à un modèle de validation via API |
-| pre-commit / lefthook | l'oracle | Leur config appelle `./scripts/check.sh --fast` — l'invariant survit. Un seul propriétaire du routage : si le repo a déjà pre-commit, tripwire s'y insère comme entrée au lieu de posséder `core.hooksPath` |
-| [Betterer](https://phenomnomnominal.github.io/betterer/) (JS) | la phase fast | `betterer ci` dans `FAST_CMD` = ratchet multi-métriques committé, son rouge devient le rouge du check |
-| Mutation testing (cargo-mutants, mutmut, Stryker) | CI à étages (slot nightly) | La « preuve de morsure » systématisée, hors boucle locale |
+| [TDD Guard](https://github.com/nizos/tdd-guard) | hook slot (PreToolUse) | Per-edit TDD discipline upstream; tripwire stays the downstream oracle (Stop/pre-push) + ratchet. Install alongside — the init merge preserves it. ⚠ sends edited code to a validation model API |
+| pre-commit / lefthook | the oracle | Their config calls `./scripts/check.sh --fast` — the invariant survives. One owner for hook routing: if the repo already uses pre-commit, tripwire inserts itself as an entry instead of owning `core.hooksPath` |
+| [Betterer](https://phenomnomnominal.github.io/betterer/) (JS) | the fast phase | `betterer ci` inside `FAST_CMD` = a committed multi-metric ratchet; its red becomes the check's red |
+| Mutation testing (cargo-mutants, mutmut, Stryker) | staged CI (nightly slot) | The "bite proof" systematized, outside the local loop |
 
-### Sécurité des greffons tiers (NON NÉGOCIABLE)
+### Third-party add-on security (NON-NEGOTIABLE)
 
-Un hook tiers s'exécute **avec vos permissions, dans votre session, à chaque
-édition** — c'est une dépendance à accès shell, pas un gadget. Avant d'adosser
-quoi que ce soit :
+A third-party hook runs **with your permissions, in your session, on every
+edit** — it is a dependency with shell access, not a gadget. Before leaning
+anything onto tripwire:
 
-1. **Passe de vetting** : lire le script de hook lui-même (pas le README) ;
-   identifier ce qui **quitte la machine** (ex. TDD Guard envoie le code à une
-   API de validation) ; vérifier les scripts `postinstall` npm et les
-   dépendances transitives ; mainteneur, activité, licence.
-2. **Épingler la version exacte** : version npm exacte (pas de `^`/`~`),
-   `rev:` en SHA pour pre-commit, commit épinglé pour les plugins de
-   marketplace. Le lockfile est committé.
-3. **Jamais de mise à jour automatique** : toute montée de version passe par
-   une **review du diff** (le vecteur malware classique est la mise à jour
-   compromise d'un paquet sain — la version que vous avez auditée n'est pas
-   celle que l'update installera). Même discipline que le ratchet : un
-   changement de version = une ligne de diff assumée en review.
-4. En organisation : `strictKnownMarketplaces` (voir section Équipes) pour
-   borner les sources installables.
+1. **Vetting pass**: read the hook script itself (not the README); identify
+   what **leaves the machine** (e.g. TDD Guard sends code to a validation
+   API); check npm `postinstall` scripts and transitive dependencies;
+   maintainer, activity, license.
+2. **Pin the exact version**: exact npm version (no `^`/`~`), `rev:` as a SHA
+   for pre-commit, pinned commit for marketplace plugins. Commit the lockfile.
+3. **Never auto-update**: every version bump goes through a **diff review**
+   (the classic malware vector is the compromised update of a healthy
+   package — the version you audited is not the one the update will
+   install). Same discipline as the ratchet: a version change is an owned
+   diff line in review.
+4. In an organization: `strictKnownMarketplaces` (see the Teams section) to
+   bound installable sources.
 
-## Économie de modèles (haiku sans hallucination)
+## Model economy (haiku without hallucinations)
 
-L'oracle mécanique de tripwire (check.sh, ratchet, preuve de morsure) rend les
-modèles économiques **sûrs là où une erreur est rattrapée**, et seulement là :
+tripwire's mechanical oracle (check.sh, ratchet, bite proof) makes economical
+models **safe where an error gets caught**, and only there:
 
-| Tâche | Modèle | Pourquoi c'est sûr (ou pas) |
+| Task | Model | Why it's safe (or not) |
 |---|---|---|
-| Transcription de code spécifié, refactor mécanique | haiku | le check/la compilation attrapent toute dérive |
-| Extraction/lecture (audits gros scope) | haiku | citations `fichier:ligne` obligatoires = vérifiables ; greps ciblés (compressés par rtk) |
-| Review, audit, debug, **écriture d'assertions** | sonnet minimum | une tautologie ou un verdict halluciné passent l'oracle au vert — rien ne les rattrape |
-| Revue finale avant release | le plus fort disponible | c'est elle qui attrape ce que tout le reste a raté |
+| Transcribing specified code, mechanical refactors | haiku | the check/compilation catches any drift |
+| Extraction/reading (large-scope audits) | haiku | mandatory `file:line` citations = verifiable; targeted greps (compressed by rtk) |
+| Review, audit, debug, **writing assertions** | sonnet minimum | a tautology or a hallucinated verdict passes the oracle green — nothing catches it |
+| Final review before release | strongest available | it catches what everything else missed |
 
-Cette doctrine est encodée dans le plugin : section « Économie de modèles » du
-CLAUDE.md scaffoldé, `model: sonnet` épinglé sur les agents de jugement de
-`gen-agents`, protocole extracteurs/juge de `/tripwire:test-review`.
+This doctrine is encoded in the plugin: the "Model economy" section of the
+scaffolded CLAUDE.md, `model: sonnet` pinned on gen-agents' judgment agents,
+the extractors/judge protocol of `/tripwire:test-review`.
 
-## Tokens & rtk (optionnel)
+## Tokens & rtk (optional)
 
-tripwire est déjà frugal en tokens par design : `check.sh` exécute tests et
-builds en `>/dev/null` (seul le code de retour compte), et les hooks ne
-renvoient à l'assistant qu'un résumé tronqué en cas de rouge. Aucune sortie
-verbeuse n'entre dans le contexte via le pipeline lui-même.
+tripwire is token-frugal by design: `check.sh` runs tests and builds with
+output discarded (only the exit code matters), and hooks only relay a
+truncated summary to the assistant when red. No verbose output enters the
+context through the pipeline itself.
 
-Le seul moment verbeux est volontaire : quand `check.sh` est rouge, il invite
-à relancer la commande pour le détail (`relance pour le détail : <cmd>`). Ce
-re-run est une commande shell normale — si vous utilisez [rtk](https://github.com/rtk-ai/rtk)
-(proxy qui compresse les sorties de 60-90 %) en interception globale, ce détail
-est compressé automatiquement, sans que tripwire ait à s'en occuper.
-
-Autrement dit : **aucune intégration n'est nécessaire.** tripwire reste
-sans dépendance et portable ; rtk, s'il est présent, agit sur la seule étape
-qui en bénéficie.
+The only verbose moment is deliberate: when red, the failure details are in
+`last-fail.log`. If you use [rtk](https://github.com/rtk-ai/rtk) (a proxy
+that compresses command output by 60-90%) globally, any manual re-run gets
+compressed automatically — no integration needed. tripwire stays
+dependency-free and portable.
 
 ## Installation
 
-### Pour Claude Code
+### For Claude Code
 
 ```bash
-# Depuis GitLab :
+# From GitHub:
+claude plugin marketplace add https://github.com/mornepousse/tripwire
+# Or from GitLab:
 claude plugin marketplace add https://gitlab.com/harrael/tripwire
-# Ou depuis un clone local :
-claude plugin marketplace add ~/Documents/GitHub/tripwire
 
 claude plugin install tripwire@tripwire
 ```
 
-### Pour Mistral Vibe
+### For Mistral Vibe
 
 ```bash
-# Depuis GitLab :
-vibe plugin marketplace add https://gitlab.com/harrael/tripwire
-# Ou depuis un clone local :
-vibe plugin marketplace add ~/Documents/GitHub/tripwire
-
+vibe plugin marketplace add https://github.com/mornepousse/tripwire
 vibe plugin install tripwire@tripwire
 ```
 
@@ -155,48 +146,51 @@ vibe plugin install tripwire@tripwire
 
 | Skill | Usage |
 |---|---|
-| `/tripwire:init` | Scaffolde check.sh (skip-si-vert, scoping monorepo, verrou, garde-budget), hooks git, hooks de plateforme (Claude Code : PostToolUse/Stop/SessionStart ; Mistral Vibe : onEdit/onWrite/onStop), CI à étages optionnelle, section config (CLAUDE.md ou VIBE.md). **Relancé sur un projet équipé** : détecte les scaffolds en retard via le tampon `# tripwire-template:` et propose une mise à jour ciblée sans écraser vos commandes |
-| `/tripwire:gen-agents` | Génère jusqu'à 5 agents spécialisés au projet : test-author / code-reviewer / debugger / maintainer / security-auditor (les deux derniers avec mémoire persistante inter-sessions) |
-| `/tripwire:release` | Workflow de release : tag git = version, bump semver proposé depuis les commits, check vert obligatoire, sync des manifests de version, glab/gh release |
-| `/tripwire:status` | Diagnostic one-shot : scaffold à jour ? hooks actifs ? dernier vert/rouge ? dérive des durées ? angles morts de surveillance ? Mode `--fleet` : tableau de tous les repos équipés |
-| `/tripwire:bisect` | Localise le commit qui a cassé le check : `git bisect run` avec check.sh comme oracle |
-| `/tripwire:test-review` | Audit sémantique des tests : creux, happy-path only, tests de mocks, couplage, parallel-safety, nommage — findings + patchs |
+| `/tripwire:init` | Scaffolds check.sh (skip-if-green, monorepo scoping, lock, budget guard, test ratchet), git hooks, platform hooks (Claude Code: PostToolUse/Stop/SessionStart; Mistral Vibe: onEdit/onWrite/onStop), optional staged CI, config section (CLAUDE.md or VIBE.md). **Re-run on an equipped project**: detects outdated scaffolds via the `# tripwire-template:` stamp and proposes a targeted update without touching your commands |
+| `/tripwire:gen-agents` | Generates up to 5 project-specialized agents: test-author / code-reviewer / debugger / maintainer / security-auditor (the last two with persistent cross-session memory; judgment agents pinned to `model: sonnet`) |
+| `/tripwire:release` | Release workflow: git tag = version, semver bump proposed from commits, green check mandatory, version-manifest sync, glab/gh release |
+| `/tripwire:status` | One-shot diagnosis: scaffold up to date? hooks active? last green/red? duration drift? watched-path blind spots? `--fleet` mode: a table of all equipped repos |
+| `/tripwire:bisect` | Finds the commit that broke the check: `git bisect run` with check.sh as the oracle |
+| `/tripwire:test-review` | Semantic test audit: hollow assertions, happy-path-only, mock-testing, coupling, parallel-safety, lying names — findings + patches. Large-scope protocol: economical extractors (cited) + one strong judge |
 
-## Mettre à jour un projet équipé
+## Updating an equipped project
 
-Chaque `check.sh` généré porte un tampon `# tripwire-template: vX.Y.Z`. Après un
-`claude plugin update tripwire@tripwire`, relancez `/tripwire:init` dans le
-projet : le skill compare le tampon à la version du plugin, annonce ce qui a
-changé et met à jour les fichiers scaffoldés en préservant vos commandes
-fast/build, variantes et chemins surveillés.
+Every generated `check.sh` carries a `# tripwire-template: vX.Y.Z` stamp.
+After `claude plugin update tripwire@tripwire`, re-run `/tripwire:init` in the
+project: the skill compares the stamp to the plugin version, announces what
+changed, and updates the scaffolded files while preserving your fast/build
+commands, variants and watched paths.
 
-Le hook `SessionStart` installe par ailleurs les hooks git automatiquement à
-chaque nouveau clone — plus besoin de penser à `./scripts/install-hooks.sh`.
+The `SessionStart` hook also installs the git hooks automatically on every
+fresh clone — no need to remember `./scripts/install-hooks.sh`.
 
-## Équipes (Claude for Teams / Enterprise)
+## Teams (Claude for Teams / Enterprise)
 
-Pour déployer le pipeline à toute une organisation, deux mécanismes Claude Code
-se combinent avec tripwire (Admin Settings → Claude Code → Managed settings) :
+Two Claude Code mechanisms combine with tripwire for org-wide deployment
+(Admin Settings → Claude Code → Managed settings):
 
-- **Marketplace contrôlé** : `strictKnownMarketplaces` dans les managed settings
-  limite les marketplaces autorisés — ajoutez-y l'URL de ce repo pour distribuer
-  tripwire officiellement (`claude plugin marketplace add <url>` chez chaque dev).
-- **Hooks managés** : les managed settings acceptent une clé `hooks` identique à
-  celle que `/tripwire:init` écrit dans `.claude/settings.json`. Un admin peut
-  donc pousser les hooks `PostToolUse`/`Stop`/`SessionStart` org-wide. Pour que
-  les repos non-tripwire restent silencieux, garder les commandes derrière un
-  test d'existence :
+- **Controlled marketplace**: `strictKnownMarketplaces` restricts allowed
+  marketplaces — add this repo's URL to distribute tripwire officially.
+- **Managed hooks**: managed settings accept the same `hooks` key that
+  `/tripwire:init` writes to `.claude/settings.json`. To keep non-tripwire
+  repos silent, guard the commands behind an existence test:
   ```json
   { "type": "command",
     "command": "H=\"$CLAUDE_PROJECT_DIR/scripts/hooks/cc_stop.sh\"; [ -x \"$H\" ] && exec \"$H\"; exit 0" }
   ```
 
-L'invariant reste inchangé : les hooks managés n'appellent que `scripts/check.sh`
-du repo courant ; chaque projet garde la définition de son « vert ».
+The invariant is unchanged: managed hooks only call the current repo's
+`scripts/check.sh`; each project keeps its own definition of "green".
 
-## Détection automatique de plateforme
+## Automatic platform detection
 
-Le plugin détecte automatiquement si vous utilisez **Claude Code** ou **Mistral Vibe** en vérifiant les variables d'environnement (`CLAUDE_PROJECT_DIR` ou `VIBE_PROJECT_DIR`) et adapte son comportement :
-- Génération des bons hooks (PostToolUse/Stop pour Claude, onEdit/onWrite/onStop pour Vibe)
-- Création du bon fichier de configuration (.claude/settings.json ou .vibe/config.json)
-- Utilisation du bon fichier de documentation (CLAUDE.md ou VIBE.md)
+The plugin detects whether you're on **Claude Code** or **Mistral Vibe** via
+environment variables (`CLAUDE_PROJECT_DIR` / `VIBE_PROJECT_DIR`) and adapts:
+generated hooks, config file (.claude/settings.json or .vibe/config.json),
+documentation file (CLAUDE.md or VIBE.md).
+
+## License
+
+[MIT](LICENSE). Additionally, **the files that `/tripwire:init` and
+`/tripwire:gen-agents` generate into your projects are yours** — no
+attribution or license notice required on scaffolded output.
