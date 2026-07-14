@@ -8,7 +8,7 @@
       "name": "tripwire",
       "description": "Reusable anti-regression pipeline: check.sh + git hooks + agent hooks + test ratchet + CLAUDE.md section + agents + release.",
       "source": "./",
-      "version": "0.10.1"
+      "version": "0.10.2"
     }
   ]
 }

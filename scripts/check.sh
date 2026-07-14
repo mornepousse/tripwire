@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tripwire-template: v0.9.0
+# tripwire-template: v0.10.2
 # Tripwire anti-régression tripwire — source unique de vérité du "quoi vérifier".
 # Généré par /tripwire:init. Adapter ICI ; les hooks ne font qu'appeler ce script.
 # Modes:
@@ -166,7 +166,7 @@ fi
 if [ -n "$TEST_COUNT_CMD" ]; then
   TC="$( (eval "$TEST_COUNT_CMD") 2>/dev/null | tr -d '[:space:]' )"
   case "$TC" in ''|*[!0-9]*) TC="" ;; esac
-  REF="$(tr -d '[:space:]' < .tripwire-testcount 2>/dev/null)"
+  REF="$(cat .tripwire-testcount 2>/dev/null | tr -d '[:space:]')"
   case "$REF" in ''|*[!0-9]*) REF="" ;; esac
   if [ -n "$TC" ]; then
     if [ -z "$REF" ]; then
