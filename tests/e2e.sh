@@ -32,19 +32,14 @@ sed -e 's|{{WATCHED_PATH_PATTERNS}}|*"/src/"*\|*"/test/"*|g' \
     -e 's|{{TEST_PATH_PATTERNS}}|*"/test/"*|g' \
     -e 's|{{ASSERT_PATTERN}}|assert|g' \
     "$PLUGIN/skills/init/templates/cc_post_edit.sh.tmpl" > scripts/hooks/cc_post_edit.sh
-sed -e '/{{VARIANT_STATE_BLOCK}}/d' -e '/{{ENV_SETUP_BLOCK}}/d' \
-    -e 's|{{ENV_AVAILABLE_TEST}}|true|g' \
-    -e 's|{{STOP_CHECK_ARGS}}||g' -e 's|{{STOP_CHECK_DESC}}|complet|g' \
-    "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" > scripts/hooks/cc_stop.sh
+# Stop : garde-fou --fast pur, plus aucun placeholder (build complet = pre-push)
+cp "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" scripts/hooks/cc_stop.sh
 # Templates Mistral Vibe (payload: file_path au niveau racine, pas tool_input)
 sed -e 's|{{WATCHED_PATH_PATTERNS}}|*"/src/"*\|*"/test/"*|g' \
     -e 's|{{TEST_PATH_PATTERNS}}|*"/test/"*|g' \
     -e 's|{{ASSERT_PATTERN}}|assert|g' \
     "$PLUGIN/skills/init/templates/vibe_post_edit.sh.tmpl" > scripts/hooks/vibe_post_edit.sh
-sed -e '/{{VARIANT_STATE_BLOCK}}/d' -e '/{{ENV_SETUP_BLOCK}}/d' \
-    -e 's|{{ENV_AVAILABLE_TEST}}|true|g' \
-    -e 's|{{STOP_CHECK_ARGS}}||g' -e 's|{{STOP_CHECK_DESC}}|complet|g' \
-    "$PLUGIN/skills/init/templates/vibe_stop.sh.tmpl" > scripts/hooks/vibe_stop.sh
+cp "$PLUGIN/skills/init/templates/vibe_stop.sh.tmpl" scripts/hooks/vibe_stop.sh
 chmod +x scripts/check.sh scripts/hooks/* scripts/install-hooks.sh
 
 fails=0
@@ -73,11 +68,15 @@ done
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast vert" 0 $?
 ./scripts/check.sh >/dev/null 2>&1;                    chk "full vert" 0 $?
 scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop hook vert" 0 $?
+! grep 'scripts/check.sh' scripts/hooks/cc_stop.sh | grep -qv -- '--fast'
+chk "cc stop: tout appel check.sh est en --fast (e2e complet = pre-push)" 0 $?
 echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
 chk "post-edit surveillé vert" 0 $?
 echo '{"tool_input":{"file_path":"'"$TMP"'/README.md"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
 chk "post-edit non surveillé ignoré" 0 $?
 scripts/hooks/vibe_stop.sh </dev/null >/dev/null 2>&1;   chk "vibe stop hook vert" 0 $?
+! grep 'scripts/check.sh' scripts/hooks/vibe_stop.sh | grep -qv -- '--fast'
+chk "vibe stop: tout appel check.sh est en --fast" 0 $?
 echo '{"file_path":"'"$TMP"'/src/a.c"}' | scripts/hooks/vibe_post_edit.sh >/dev/null 2>&1
 chk "vibe post-edit surveillé vert" 0 $?
 echo '{"file_path":"'"$TMP"'/README.md"}' | scripts/hooks/vibe_post_edit.sh >/dev/null 2>&1
@@ -290,12 +289,8 @@ sed -e 's|{{PROJECT_NAME}}|toy-multi|g' \
     -e 's|{{TEST_COUNT_CMD}}||g' \
     "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check.sh
 
-sed -e 's#{{VARIANT_STATE_BLOCK}}#VARIANT="$(cat .tripwire-variant 2>/dev/null || true)"; VARIANT="${VARIANT:-v1}"#' \
-    -e '/{{ENV_SETUP_BLOCK}}/d' \
-    -e 's|{{ENV_AVAILABLE_TEST}}|true|g' \
-    -e 's|{{STOP_CHECK_ARGS}}|--variant "$VARIANT"|g' \
-    -e 's|{{STOP_CHECK_DESC}}|variant $VARIANT|g' \
-    "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" > scripts/hooks/cc_stop.sh
+# Stop multi : même garde-fou --fast, indépendant de la variante (pas de build ici)
+cp "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" scripts/hooks/cc_stop.sh
 chmod +x scripts/check.sh scripts/hooks/cc_stop.sh
 echo v1 > .tripwire-variant
 
@@ -313,7 +308,9 @@ chk "bash -n multi" 0 $?
 if grep -Fn '{{' scripts/ >/dev/null 2>&1; then echo "✗ placeholders résiduels (multi)"; fails=1; else echo "✓ pas de placeholder résiduel (multi)"; fi
 ./scripts/check.sh >/dev/null 2>&1;                    chk "multi full vert" 0 $?
 ./scripts/check.sh --variant v1 >/dev/null 2>&1;       chk "multi --variant v1 vert" 0 $?
-scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "multi stop hook vert (variant courant)" 0 $?
+scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "multi stop hook (--fast) vert" 0 $?
+! grep 'scripts/check.sh' scripts/hooks/cc_stop.sh | grep -qv -- '--fast'
+chk "multi stop: tout appel check.sh est en --fast" 0 $?
 
 # v2 cassé : full rouge mais TOUTES les variantes tentées ; v1 isolé reste vert
 sed -i 's|"bad"|"v2"|' build.sh
@@ -330,23 +327,15 @@ chk "garde stop_hook_active -> rc 0" 0 $?
 printf '{}' | scripts/hooks/cc_stop.sh >/dev/null 2>&1
 chk "stop rouge sans garde -> rc 2" 2 $?
 
-# Dégradation : env de build indisponible -> --fast seul, build sauté
-sed -e 's#{{VARIANT_STATE_BLOCK}}#VARIANT="$(cat .tripwire-variant 2>/dev/null || true)"; VARIANT="${VARIANT:-v1}"#' \
-    -e '/{{ENV_SETUP_BLOCK}}/d' \
-    -e 's|{{ENV_AVAILABLE_TEST}}|false|g' \
-    -e 's|{{STOP_CHECK_ARGS}}|--variant "$VARIANT"|g' \
-    -e 's|{{STOP_CHECK_DESC}}|variant $VARIANT|g' \
-    "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" > scripts/hooks/cc_stop_degraded.sh
-chmod +x scripts/hooks/cc_stop_degraded.sh
+# Nouveau contrat : le Stop ne lance QUE --fast. Une casse de build variant (v2)
+# ne le fait PLUS bloquer (c'est le rôle du pre-push) ; seule la phase fast bloque.
 printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh   # fast vert, v2 toujours cassé
 echo v2 > .tripwire-variant
 printf '{}' | scripts/hooks/cc_stop.sh >/dev/null 2>&1
-chk "stop env dispo + variant v2 cassé -> rc 2" 2 $?
-printf '{}' | scripts/hooks/cc_stop_degraded.sh >/dev/null 2>&1
-chk "stop dégradé (env absent) -> fast seul, rc 0" 0 $?
-printf '#!/usr/bin/env bash\nexit 1\n' > fast.sh
-printf '{}' | scripts/hooks/cc_stop_degraded.sh >/dev/null 2>&1
-chk "stop dégradé + fast rouge -> rc 2" 2 $?
+chk "stop --fast ignore le build variant cassé (e2e = pre-push) -> rc 0" 0 $?
+printf '#!/usr/bin/env bash\nexit 1\n' > fast.sh   # phase fast rouge -> le Stop bloque
+printf '{}' | scripts/hooks/cc_stop.sh >/dev/null 2>&1
+chk "stop --fast rouge quand la phase fast est rouge -> rc 2" 2 $?
 
 echo "----------------------------------------"
 if [ "$fails" -eq 0 ]; then echo "E2E: tout vert"; else echo "E2E: ROUGE"; fi

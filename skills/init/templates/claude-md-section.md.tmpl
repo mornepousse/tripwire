@@ -13,9 +13,9 @@ Source unique de vérité : `scripts/check.sh`.
 
 **Hooks Claude Code** (`.claude/settings.json`, automatiques) :
 - `PostToolUse` sur édition d'un fichier surveillé → `check.sh --fast`.
-- `Stop` → check du variant courant (lu dans `.tripwire-variant`). Si l'env de
-  build n'est pas disponible, dégrade en `--fast` seul.
-- Changer de variante courante : `echo <variante> > .tripwire-variant`.
+- `Stop` → `check.sh --fast` (garde-fou ~1 s avant de conclure). Le build complet
+  ({{VARIANT_LIST_DESC}}) n'est PAS relancé à chaque fin de tour : il reste
+  garanti au pre-push git.
 
 ### Norme TDD — nouvelle logique pure
 Toute nouvelle fonction de logique pure ({{TDD_SCOPE}}) : test écrit **d'abord**,

@@ -60,8 +60,8 @@ mise à jour :
    manuels) / migration complète (mettre aussi à jour CI, agents et docs).
 3. En standard + alias : réinjecter le préambule projet après le `cd`,
    ajouter les alias dans le `case` (`--ancien|--standard)`), documenter les
-   alias dans l'en-tête, et adapter `{{VARIANT_STATE_BLOCK}}` /
-   `{{SESSION_VARIANT_LINE}}` au fichier de variante custom.
+   alias dans l'en-tête, et adapter `{{SESSION_VARIANT_LINE}}` au fichier de
+   variante custom.
 4. Les hooks maison de `settings.json` et les scripts non-tripwire de
    `scripts/hooks/` ne sont JAMAIS touchés.
 
@@ -128,8 +128,8 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
    {HOOK_TYPES} (ex. `src/`, `tests/`). Convertir en patterns `case` :
    `src/` → `*"src/"*`.
 4. **Setup d'environnement** — commande à sourcer avant un build
-   (ex. `source ~/esp/esp-idf/export.sh`), ou « aucun ».
-   Si un setup existe, demander aussi comment tester que l'env est chargé (ex. variable exportée : `[ -n "${IDF_PATH:-}" ]`) — c'est la valeur de `{{ENV_AVAILABLE_TEST}}`. Sans setup : `true`.
+   (ex. `source ~/esp/esp-idf/export.sh`), ou « aucun ». Alimente
+   `{{ENV_SETUP_BLOCK}}` dans le `pre-push` ; supprimer la ligne si aucun.
 5. **Modules (monorepo, optionnel)** — ne poser la question que si le repo a
    l'air d'un monorepo (plusieurs sous-projets avec leurs propres manifests) :
    liste de couples `glob → commande de test du module` pour router la phase
@@ -142,9 +142,11 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
    avec l'avertissement d'y mettre la toolchain du projet).
    **Ne jamais écraser** un `.gitlab-ci.yml`/workflow existant — proposer le
    contenu à intégrer à la main.
-7. **Timeout du hook Stop** — défaut 600 s dans `settings.json`. Si le build
-   d'une variante dépasse ~8 min, demander la valeur et remplacer `600` dans le
-   fichier généré (sed après copie ; le template reste du JSON valide).
+7. **Timeout du hook Stop** — défaut 600 s dans `settings.json`. Le hook Stop
+   ne lance que `check.sh --fast` (garde-fou léger), jamais le build/e2e complet
+   (réservé au pre-push), donc le défaut suffit quasiment toujours ; ne le
+   toucher que si la phase fast elle-même est très longue (sed après copie ; le
+   template reste du JSON valide).
 8. **Ratchet de tests (optionnel)** — commande une-ligne qui imprime le nombre
    de tests (`{{TEST_COUNT_CMD}}`), ou « aucun » (ratchet inerte). Défauts :
 
@@ -195,12 +197,8 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | `{{VARIANTS_SPACE_SEPARATED}}` | `v1 v2 …` ; **vide** si mono-cible |
 | `{{VARIANT_BUILD_CMD}}` | commande de build, peut utiliser `$v` |
 | `{{VARIANT_LIST_DESC}}` | ex. « les 3 variantes » / « le build complet » |
-| `{{DEFAULT_VARIANT}}` | variante par défaut (multi uniquement) (consommé dans la construction de `{{VARIANT_STATE_BLOCK}}`, n'apparaît littéralement dans aucun template) |
-| `{{ENV_SETUP_BLOCK}}` | bloc shell de setup d'env ; **supprimer la ligne** si aucun |
-| `{{ENV_AVAILABLE_TEST}}` | test shell de dispo de l'env ; `true` si aucun |
-| `{{VARIANT_STATE_BLOCK}}` | deux lignes : `VARIANT="$(cat .tripwire-variant 2>/dev/null \|\| true)"` puis `VARIANT="${VARIANT:-<défaut>}"` (robuste au fichier vide) ; **supprimer la ligne** si mono |
-| `{{STOP_CHECK_ARGS}}` | `--variant "$VARIANT"` (multi) ; vide (mono) |
-| `{{STOP_CHECK_DESC}}` | `variant $VARIANT` (multi) ; `complet` (mono) |
+| `{{DEFAULT_VARIANT}}` | variante par défaut (multi uniquement) : contenu écrit dans `.tripwire-variant` ; n'apparaît littéralement dans aucun template |
+| `{{ENV_SETUP_BLOCK}}` | bloc shell de setup d'env (pre-push) ; **supprimer la ligne** si aucun |
 | `{{WATCHED_PATH_PATTERNS}}` | patterns `case` séparés par `\|` |
 | `{{TDD_SCOPE}}` | types de logique pure du projet |
 | `{{SESSION_VARIANT_LINE}}` | multi : `V="$(cat .tripwire-variant 2>/dev/null \|\| true)"; [ -n "$V" ] && CTX="$CTX tripwire: variante courante: $V."` ; **supprimer la ligne** si mono |
@@ -215,7 +213,7 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 
 ### Adaptations mono-cible
 - `ALL_VARIANTS=()` vide ; le mode `--variant` reste dans check.sh (inerte, ne pas le retirer).
-- Dans la section {MD_FILE} : supprimer la ligne `--variant`, supprimer la mention `.tripwire-variant`, et reformuler la puce {HOOK_TYPES} en "check complet".
+- Dans la section {MD_FILE} : supprimer la ligne `--variant` (multi uniquement). La puce `Stop` (`--fast`) et `{{VARIANT_LIST_DESC}}` restent telles quelles.
 - Pas de fichier `.tripwire-variant` ; supprimer la ligne `{{SESSION_VARIANT_LINE}}` de `cc_session_start.sh`.
 
 ### Multi-variantes

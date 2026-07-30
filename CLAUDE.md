@@ -22,7 +22,7 @@ Source unique de vérité : `scripts/check.sh` (le plugin mange sa propre nourri
 
 **Hooks Claude Code** (`.claude/settings.json`, automatiques) :
 - `PostToolUse` sur édition de `skills/`, `tests/` ou `.claude-plugin/` → `check.sh --fast`.
-- `Stop` → check complet.
+- `Stop` → `check.sh --fast` (garde-fou léger ~1 s ; le e2e complet reste au pre-push, pas à chaque fin de tour).
 
 ### Norme TDD — nouvelle logique pure
 Tout nouveau comportement des templates (mode de check.sh, garde de hook,
