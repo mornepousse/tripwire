@@ -196,13 +196,48 @@ chk "divergences: message cite le pourquoi" 0 $?
 cp "$TMP/cc_stop.bak" scripts/hooks/cc_stop.sh && chmod +x scripts/hooks/cc_stop.sh
 rm -f "$TMP/cc_stop.bak"
 printf 'scripts/hooks/absent.sh\tX\tfichier hote disparu\n' > .tripwire-divergences
-./scripts/check.sh --fast --force >/dev/null 2>&1
+OUT="$(./scripts/check.sh --fast --force 2>&1)"
 chk "divergences: fichier hôte absent -> rouge" 1 $?
-printf 'un-seul-champ\n' > .tripwire-divergences
+echo "$OUT" | grep -q "rétablir la divergence"
+chk "divergences: fichier hôte absent -> conseil de rétablissement" 0 $?
+# Malformée : le fichier hôte EXISTE, sinon la branche « hôte absent » rendrait
+# rouge toute seule et l'assertion ne prouverait rien. Sans garde de
+# malformation, grep -qF -- "" matche tout et la ligne serait VERTE.
+printf 'scripts/check.sh\n' > .tripwire-divergences
 OUT="$(./scripts/check.sh --fast --force 2>&1)"
 chk "divergences: ligne malformée -> rouge" 1 $?
 echo "$OUT" | grep -q "ligne 1"
 chk "divergences: malformée cite le numéro de ligne" 0 $?
+# Tabulations consécutives : le motif est VIDE (malformée), pas « le pourquoi
+# décalé d'un champ ». IFS=$'\t' fusionne les tabs -> m=pourquoi -> vert à tort.
+printf 'scripts/check.sh\t\tALL_VARIANTS\n' > .tripwire-divergences
+./scripts/check.sh --fast --force >/dev/null 2>&1
+chk "divergences: tabs consécutifs -> motif vide -> rouge" 1 $?
+# Numéro de ligne PHYSIQUE : commentaire et ligne vide comptent aussi
+printf '# entete\n\nscripts/check.sh\n' > .tripwire-divergences
+OUT="$(./scripts/check.sh --fast --force 2>&1)"
+echo "$OUT" | grep -q "ligne 3"
+chk "divergences: numéro de ligne compte commentaires et lignes vides" 0 $?
+# Fiche en CRLF : le \r ne doit pas coller au dernier champ (faux rouge indébuggable)
+printf 'scripts/check.sh\tALL_VARIANTS[@]\r\n' > .tripwire-divergences
+./scripts/check.sh --fast --force >/dev/null 2>&1
+chk "divergences: fiche CRLF -> pas de faux rouge" 0 $?
+# Dernière ligne sans retour chariot final : lue quand même (sinon vert silencieux)
+printf 'scripts/hooks/absent.sh\tX\tsans newline finale' > .tripwire-divergences
+./scripts/check.sh --fast --force >/dev/null 2>&1
+chk "divergences: dernière ligne sans newline finale -> lue quand même" 1 $?
+# Fiche présente mais illisible : jamais un vert silencieux
+printf 'scripts/check.sh\tALL_VARIANTS[@]\tfiche lisible\n' > .tripwire-divergences
+chmod 000 .tripwire-divergences
+if [ -r .tripwire-divergences ]; then
+  echo "~ fiche encore lisible malgré chmod 000 (root ?) — test d'illisibilité sauté"
+else
+  OUT="$(./scripts/check.sh --fast --force 2>&1)"
+  chk "divergences: fiche illisible -> rouge" 1 $?
+  echo "$OUT" | grep -q "illisible"
+  chk "divergences: fiche illisible -> message explicite" 0 $?
+fi
+chmod 644 .tripwire-divergences
 # Motif à caractères regex : en regex, ALL_VARIANTS[@] matcherait « ALL_VARIANTS@ »,
 # chaîne absente du fichier. Vert ici => la comparaison est bien littérale.
 printf 'scripts/check.sh\tALL_VARIANTS[@]\tpreuve que le motif est compare en chaine litterale\n' > .tripwire-divergences
