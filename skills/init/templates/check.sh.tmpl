@@ -116,6 +116,10 @@ T_START=$SECONDS
 # ---- Divergences déclarées : un écart assumé ne disparaît pas en silence ----
 # .tripwire-divergences (committé), TSV : fichier<TAB>motif<TAB>pourquoi
 # Absent/vide -> inerte. Motif comparé en chaîne littérale, jamais en regex.
+# NOTE: cette fonction est dupliquée entre skills/init/templates/check.sh.tmpl
+# et scripts/check.sh (dogfood). Duplication assumée : un check.sh scaffoldé est
+# copié dans d'autres repos, il doit être autonome et ne rien sourcer du plugin.
+# Toute correction ici se reporte à l'identique dans l'autre fichier.
 check_divergences() {
   [ -f .tripwire-divergences ] || return 0
   local rc=0 n=0 f m w
