@@ -28,6 +28,11 @@ Si `scripts/check.sh` existe déjà dans le repo cible :
   fast/build, variantes, chemins surveillés, env setup) — les relire depuis les
   fichiers existants et les réinjecter dans les nouveaux templates. Mettre à
   jour le tampon.
+- **Divergences déclarées** : lire `.tripwire-divergences` du repo cible AVANT
+  toute écriture. Générer depuis les templates, réinjecter chaque motif déclaré
+  dans la sortie, puis lancer `./scripts/check.sh --fast` — c'est l'assertion
+  qui prononce le verdict, pas votre relecture. Un motif non réinjectable :
+  s'arrêter et demander l'arbitrage (AskUserQuestion), jamais écraser en silence.
 - Ne jamais écraser un `check.sh` existant sans accord explicite.
 
 ### Cas particulier : dialecte divergent (scaffold ancêtre ou modifié)
@@ -48,6 +53,10 @@ mise à jour :
    ajouter les alias dans le `case` (`--ancien|--standard)`), documenter les
    alias dans l'en-tête, et adapter `{{SESSION_VARIANT_LINE}}` au fichier de
    variante custom.
+   Déclarer chaque alias dans `.tripwire-divergences` — les alias SONT des
+   divergences par construction : une ligne par alias, motif = le `--ancien)` du
+   `case`, pourquoi = le dialecte d'origine (ex. `dialecte KaSe : --board =
+   --variant standard`).
 4. Les hooks maison de `settings.json` et les scripts non-tripwire de
    `scripts/hooks/` ne sont JAMAIS touchés.
 
@@ -66,6 +75,7 @@ mise à jour :
 | v0.10.1 | docs uniquement (carte de cohabitation + doctrine sécurité des greffons tiers) — **rien à re-scaffolder** |
 | v0.11.0 | **support Mistral Vibe retiré** (plugin Claude Code uniquement) — un projet scaffoldé côté Vibe n'est plus mis à jour par ce skill. Hook Stop : ne lance plus que `check.sh --fast` (le build/e2e complet reste au pre-push) — re-scaffold : `cc_stop.sh` + la puce `Stop` de la section CLAUDE.md ; check.sh **inchangé** depuis v0.10.2 |
 | v0.10.2 | check.sh : fix fuite `No such file or directory` sur stderr au 1er init du ratchet — la lecture `REF="$(tr … < .tripwire-testcount)"` échoue sur le `<` avant que `2>/dev/null` prenne effet quand le fichier n'existe pas encore ; remplacée par `cat … 2>/dev/null \| tr`. Cosmétique (verdict et fichier inchangés) — re-scaffold : mettre à jour cette seule ligne de check.sh |
+| v0.12.0 | check.sh : assertion de divergences déclarées (`.tripwire-divergences`, TSV committé, rouge si un motif déclaré disparaît de son fichier hôte). Re-scaffold : mettre à jour check.sh + créer la fiche si le repo a des écarts |
 
 ### Cohabitation avec l'outillage tiers (pre-commit, TDD Guard…)
 
@@ -173,6 +183,12 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | `settings.json.tmpl` | `.claude/settings.json` (**merge**, voir plus bas) | — |
 | `claude-md-section.md.tmpl` | section ajoutée au `CLAUDE.md` | — |
 
+### Fiche de divergences
+
+`.tripwire-divergences` n'a pas de template : elle n'existe que si le projet a
+des écarts. Créée à la main, une ligne par écart assumé, **committée** (comme
+`.tripwire-testcount`) — son diff est le mécanisme de review.
+
 ### Placeholders
 
 | Placeholder | Valeur |
@@ -232,6 +248,8 @@ grep -rn '{{' scripts/ .claude/settings.json CLAUDE.md && echo "PLACEHOLDERS RES
 test -x scripts/hooks/pre-push
 git config --get core.hooksPath    # doit afficher scripts/hooks
 ./scripts/check.sh --fast          # doit être VERT
+# Divergences : si le repo en déclare, l'assertion doit être verte
+test -f .tripwire-divergences && ./scripts/check.sh --fast   # doit être VERT
 # Hook PostToolUse : un chemin surveillé (doit durer ~ la commande fast) puis un non surveillé (retour immédiat)
 echo '{"tool_input":{"file_path":"'$PWD'/<chemin surveillé>/x"}}' | scripts/hooks/cc_post_edit.sh; echo "rc=$?"   # rc=0
 echo '{"tool_input":{"file_path":"'$PWD'/UNWATCHED.md"}}' | scripts/hooks/cc_post_edit.sh; echo "rc=$?"          # rc=0, immédiat

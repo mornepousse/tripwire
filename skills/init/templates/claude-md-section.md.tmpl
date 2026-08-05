@@ -17,6 +17,13 @@ Source unique de vérité : `scripts/check.sh`.
   ({{VARIANT_LIST_DESC}}) n'est PAS relancé à chaque fin de tour : il reste
   garanti au pre-push git.
 
+**Divergences déclarées** : `.tripwire-divergences` (committé) liste les écarts
+assumés au scaffold standard — mode maison, dégradation d'environnement, alias
+de dialecte. Une ligne `fichier<TAB>motif<TAB>pourquoi` ; `check.sh` rend rouge
+la disparition d'un motif déclaré. **Limite** : un écart non déclaré n'est
+protégé par rien et le prochain re-scaffold l'effacera — toute divergence
+délibérée se déclare au moment où on l'introduit.
+
 ### Norme TDD — nouvelle logique pure
 Toute nouvelle fonction de logique pure ({{TDD_SCOPE}}) : test écrit **d'abord**,
 ajouté à la suite de tests de la phase rapide. Le test doit être rouge avant
