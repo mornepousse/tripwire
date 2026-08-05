@@ -194,6 +194,7 @@ chk "divergences: message cite la perte" 0 $?
 echo "$OUT" | grep -q "garde-fou leger"
 chk "divergences: message cite le pourquoi" 0 $?
 cp "$TMP/cc_stop.bak" scripts/hooks/cc_stop.sh && chmod +x scripts/hooks/cc_stop.sh
+rm -f "$TMP/cc_stop.bak"
 rm -f .tripwire-divergences
 
 # ===== Ratchet de tests =====
