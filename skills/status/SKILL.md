@@ -8,11 +8,6 @@ description: Use when checking the health of a tripwire-equipped project — sca
 Rapport compact sur l'état du pipeline anti-régression du repo courant.
 Lecture seule : ce skill ne modifie RIEN.
 
-## Plateforme
-
-- `CLAUDE_PROJECT_DIR` défini → hooks dans `.claude/settings.json`, préfixe `cc_`
-- sinon `VIBE_PROJECT_DIR` → `.vibe/config.json`, préfixe `vibe_`
-
 ## Sections du rapport (dans l'ordre)
 
 ### 1. Pipeline
@@ -28,8 +23,8 @@ recommander `/tripwire:init`.
 ### 2. Hooks
 ```bash
 git config --get core.hooksPath       # attendu: scripts/hooks (sinon: lancer scripts/install-hooks.sh)
-ls scripts/hooks/                     # pre-push + hooks de plateforme présents ?
-grep -o 'scripts/hooks/[a-z_]*\.sh' .claude/settings.json 2>/dev/null || true   # (ou .vibe/config.json)
+ls scripts/hooks/                     # pre-push + hooks cc_ présents ?
+grep -o 'scripts/hooks/[a-z_]*\.sh' .claude/settings.json 2>/dev/null || true
 ```
 
 ### 3. État
@@ -56,7 +51,7 @@ grep -h -A1 'case "\$FP" in' scripts/hooks/*post_edit.sh | sed -n '2p'   # la li
 ```
 Comparer : tout dossier actif contenant du code, absent des patterns, hors
 `docs/`, fichiers racine, `scripts/` et dossiers de config (`.claude/`,
-`.vibe/`, `.github/`) → le lister comme angle mort potentiel avec la ligne
+`.github/`) → le lister comme angle mort potentiel avec la ligne
 `case` corrigée à proposer.
 
 ## Sortie

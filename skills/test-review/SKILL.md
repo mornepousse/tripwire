@@ -60,7 +60,7 @@ coût de lecture d'un facteur 5 à 10 vs un juge fort qui lirait tout.
 4. **Couplage à l'implémentation** — le test casserait sur un refactor sans
    changement de comportement (ordre d'appels internes, détails privés).
 5. **Parallel-safety / état global** — état partagé muté sans isolation
-   (norme TDD du CLAUDE.md/VIBE.md cible si elle existe : la citer).
+   (norme TDD du CLAUDE.md cible si elle existe : la citer).
 6. **Nommage menteur** — le nom du test promet plus que ce qu'il vérifie
    (`test_handles_all_errors` qui teste un seul code d'erreur).
 

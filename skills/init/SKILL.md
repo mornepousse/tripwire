@@ -1,23 +1,9 @@
 ---
 name: init
-description: Use when installing the tripwire anti-regression pipeline into a project — scaffolds scripts/check.sh (single source of truth), versioned git hooks (pre-push), platform-specific hooks (Claude Code: PostToolUse/Stop, Mistral Vibe: onEdit/onWrite/onStop with graceful degradation), and a config section (CLAUDE.md or VIBE.md). Trigger on "installe le tripwire", "ajoute le pipeline anti-régression", "/tripwire:init", "mets en place check.sh".
+description: Use when installing the tripwire anti-regression pipeline into a project — scaffolds scripts/check.sh (single source of truth), versioned git hooks (pre-push), Claude Code hooks (PostToolUse/Stop/SessionStart), and a CLAUDE.md config section. Trigger on "installe le tripwire", "ajoute le pipeline anti-régression", "/tripwire:init", "mets en place check.sh".
 ---
 
 # tripwire:init — scaffolder le pipeline anti-régression
-
-## Détection de plateforme (Étape -1)
-
-**D'abord, détecter si on est sur Claude Code ou Mistral Vibe** :
-- Si `CLAUDE_PROJECT_DIR` est défini → PLATEFORME = "claude"
-- Sinon si `VIBE_PROJECT_DIR` est défini → PLATEFORME = "vibe"
-- Sinon → demander à l'utilisateur via AskUserQuestion
-
-Les variables suivantes sont dérivées de PLATEFORME :
-
-| Plateforme | CONFIG_DIR | CONFIG_FILE | MD_FILE | HOOK_PREFIX | HOOK_TYPES |
-|---|---|---|---|---|---|
-| claude | .claude | settings.json | CLAUDE.md | cc_ | PostToolUse, Stop |
-| vibe | .vibe | config.json | VIBE.md | vibe_ | onEdit/onWrite, onStop |
 
 ## L'invariant à installer
 
@@ -52,7 +38,7 @@ variante custom** (`.kase-board`), un **préambule projet** (export ccache…) o
 des **hooks maison** hors tripwire dans `settings.json`. Avant de proposer la
 mise à jour :
 1. `grep -rl` les noms de modes dans la CI, les agents (`.claude/agents/`),
-   les docs et le {CONFIG_MD} du repo — mesurer ce qui casserait.
+   les docs et le CLAUDE.md du repo — mesurer ce qui casserait.
 2. Proposer (AskUserQuestion) : **standard + alias** (recommandé — template
    à jour, anciens modes acceptés en alias dans le `case`, fichier de variante
    custom conservé partout où les templates lisent `.tripwire-variant`) /
@@ -78,6 +64,7 @@ mise à jour :
 | v0.9.0 | qualité des tests — check.sh : ratchet (`TEST_COUNT_CMD` + `.tripwire-testcount` committé, strict au pre-push) + avis TDD (`SRC_GREP`/`TEST_GREP`) ; hooks post-edit : garde anti-affaiblissement (`TEST_PATH_PATTERNS`/`ASSERT_PATTERN`) ; pre-push : `TRIPWIRE_RATCHET_STRICT=1` ; nouveau skill test-review |
 | v0.10.0 | doctrine économie de modèles — section « Économie de modèles » dans les sections MD scaffoldées ; gen-agents : `model: sonnet` épinglé sur les agents de jugement ; check.sh **inchangé** (tampon v0.9.0 valide) — re-scaffold léger : section MD + regénérer les agents |
 | v0.10.1 | docs uniquement (carte de cohabitation + doctrine sécurité des greffons tiers) — **rien à re-scaffolder** |
+| v0.11.0 | **support Mistral Vibe retiré** (plugin Claude Code uniquement) — un projet scaffoldé côté Vibe n'est plus mis à jour par ce skill. Hook Stop : ne lance plus que `check.sh --fast` (le build/e2e complet reste au pre-push) — re-scaffold : `cc_stop.sh` + la puce `Stop` de la section CLAUDE.md ; check.sh **inchangé** depuis v0.10.2 |
 | v0.10.2 | check.sh : fix fuite `No such file or directory` sur stderr au 1er init du ratchet — la lecture `REF="$(tr … < .tripwire-testcount)"` échoue sur le `<` avant que `2>/dev/null` prenne effet quand le fichier n'existe pas encore ; remplacée par `cat … 2>/dev/null \| tr`. Cosmétique (verdict et fichier inchangés) — re-scaffold : mettre à jour cette seule ligne de check.sh |
 
 ### Cohabitation avec l'outillage tiers (pre-commit, TDD Guard…)
@@ -125,7 +112,7 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
    paramétrée par `$v` et la variante par défaut (pour `.tripwire-variant`).
    Si aucune variante : demander/confirmer quand même la commande de build complet — elle alimente `{{VARIANT_BUILD_CMD}}` (le mode full mono-cible = fast + ce build). Même contrainte que la commande fast : pas de substitution `$(...)`.
 3. **Chemins surveillés** — répertoires dont l'édition déclenche le hook
-   {HOOK_TYPES} (ex. `src/`, `tests/`). Convertir en patterns `case` :
+   PostToolUse (ex. `src/`, `tests/`). Convertir en patterns `case` :
    `src/` → `*"src/"*`.
 4. **Setup d'environnement** — commande à sourcer avant un build
    (ex. `source ~/esp/esp-idf/export.sh`), ou « aucun ». Alimente
@@ -173,18 +160,18 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
 Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 écrire dans le repo cible :
 
-| Template | Destination cible | chmod | Plateforme |
-|---|---|---|---|
-| `check.sh.tmpl` | `scripts/check.sh` | `+x` | les deux |
-| `pre-push.tmpl` | `scripts/hooks/pre-push` | `+x` | les deux |
-| `install-hooks.sh.tmpl` | `scripts/install-hooks.sh` | `+x` | les deux |
-| `{HOOK_PREFIX}post_edit.sh.tmpl` | `scripts/hooks/{HOOK_PREFIX}post_edit.sh` | `+x` | {PLATEFORME} |
-| `{HOOK_PREFIX}stop.sh.tmpl` | `scripts/hooks/{HOOK_PREFIX}stop.sh` | `+x` | {PLATEFORME} |
-| `cc_session_start.sh.tmpl` | `scripts/hooks/cc_session_start.sh` | `+x` | claude uniquement (Vibe n'a pas d'événement session-start) |
-| `gitlab-ci.yml.tmpl` | `.gitlab-ci.yml` (si CI acceptée, forge gitlab, fichier absent) | — | les deux |
-| `github-actions.yml.tmpl` | `.github/workflows/tripwire.yml` (si CI acceptée, forge github, fichier absent) | — | les deux |
-| `{PLATEFORME}-config.json.tmpl` | `{CONFIG_DIR}/{CONFIG_FILE}` (**merge**, voir plus bas) | — | {PLATEFORME} |
-| `{PLATEFORME}-md-section.md.tmpl` | section ajoutée au `{MD_FILE}` | — | {PLATEFORME} |
+| Template | Destination cible | chmod |
+|---|---|---|
+| `check.sh.tmpl` | `scripts/check.sh` | `+x` |
+| `pre-push.tmpl` | `scripts/hooks/pre-push` | `+x` |
+| `install-hooks.sh.tmpl` | `scripts/install-hooks.sh` | `+x` |
+| `cc_post_edit.sh.tmpl` | `scripts/hooks/cc_post_edit.sh` | `+x` |
+| `cc_stop.sh.tmpl` | `scripts/hooks/cc_stop.sh` | `+x` |
+| `cc_session_start.sh.tmpl` | `scripts/hooks/cc_session_start.sh` | `+x` |
+| `gitlab-ci.yml.tmpl` | `.gitlab-ci.yml` (si CI acceptée, forge gitlab, fichier absent) | — |
+| `github-actions.yml.tmpl` | `.github/workflows/tripwire.yml` (si CI acceptée, forge github, fichier absent) | — |
+| `settings.json.tmpl` | `.claude/settings.json` (**merge**, voir plus bas) | — |
+| `claude-md-section.md.tmpl` | section ajoutée au `CLAUDE.md` | — |
 
 ### Placeholders
 
@@ -213,7 +200,7 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 
 ### Adaptations mono-cible
 - `ALL_VARIANTS=()` vide ; le mode `--variant` reste dans check.sh (inerte, ne pas le retirer).
-- Dans la section {MD_FILE} : supprimer la ligne `--variant` (multi uniquement). La puce `Stop` (`--fast`) et `{{VARIANT_LIST_DESC}}` restent telles quelles.
+- Dans la section CLAUDE.md : supprimer la ligne `--variant` (multi uniquement). La puce `Stop` (`--fast`) et `{{VARIANT_LIST_DESC}}` restent telles quelles.
 - Pas de fichier `.tripwire-variant` ; supprimer la ligne `{{SESSION_VARIANT_LINE}}` de `cc_session_start.sh`.
 
 ### Multi-variantes
@@ -221,16 +208,16 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 - Ajouter `.tripwire-variant` au `.gitignore` ? NON — le committer (comme
   `.kase-board` chez KaSe) pour qu'un clone frais ait un défaut sain.
 
-### Merge de `{CONFIG_DIR}/{CONFIG_FILE}`
+### Merge de `.claude/settings.json`
 - Fichier absent → écrire le template tel quel.
-- Fichier présent → lire le JSON existant, ajouter les entrées {HOOK_TYPES}
+- Fichier présent → lire le JSON existant, ajouter les entrées PostToolUse
   du template aux tableaux existants (créer les clés si absentes).
   Ne JAMAIS supprimer ou modifier les hooks existants. Vérifier le résultat
   avec `jq .` avant d'écrire.
-- Idempotence du merge : si une entrée `command` pointant sur `scripts/hooks/{HOOK_PREFIX}*` existe déjà, ne pas la dupliquer.
+- Idempotence du merge : si une entrée `command` pointant sur `scripts/hooks/cc_*` existe déjà, ne pas la dupliquer.
 
-### Section {MD_FILE}
-- `{MD_FILE}` absent → le créer avec un titre `# <projet> — {PLATEFORME} instructions` puis la section.
+### Section CLAUDE.md
+- `CLAUDE.md` absent → le créer avec un titre `# <projet> — Claude Code instructions` puis la section.
 - Présent → ajouter la section à la fin (ou remplacer une section
   « Workflow anti-régression » existante si mise à jour).
 
@@ -240,15 +227,15 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 command -v python3   # requis par les hooks (parsing JSON) — avertir si absent
 bash -n scripts/check.sh scripts/hooks/*.sh scripts/hooks/pre-push scripts/install-hooks.sh
 # Aucun placeholder résiduel ne doit rester :
-grep -rn '{{' scripts/ {CONFIG_DIR}/{CONFIG_FILE} {MD_FILE} && echo "PLACEHOLDERS RESTANTS — corriger avant de conclure" || true
+grep -rn '{{' scripts/ .claude/settings.json CLAUDE.md && echo "PLACEHOLDERS RESTANTS — corriger avant de conclure" || true
 ./scripts/install-hooks.sh
 test -x scripts/hooks/pre-push
 git config --get core.hooksPath    # doit afficher scripts/hooks
 ./scripts/check.sh --fast          # doit être VERT
-# Hook {HOOK_TYPES} : un chemin surveillé (doit durer ~ la commande fast) puis un non surveillé (retour immédiat)
-echo '{"file_path":"'$PWD'/<chemin surveillé>/x"}' | scripts/hooks/{HOOK_PREFIX}post_edit.sh; echo "rc=$?"   # rc=0
-echo '{"file_path":"'$PWD'/UNWATCHED.md"}' | scripts/hooks/{HOOK_PREFIX}post_edit.sh; echo "rc=$?"          # rc=0, immédiat
-# SessionStart (claude uniquement) : rc=0 toujours ; installe core.hooksPath s'il manque
+# Hook PostToolUse : un chemin surveillé (doit durer ~ la commande fast) puis un non surveillé (retour immédiat)
+echo '{"tool_input":{"file_path":"'$PWD'/<chemin surveillé>/x"}}' | scripts/hooks/cc_post_edit.sh; echo "rc=$?"   # rc=0
+echo '{"tool_input":{"file_path":"'$PWD'/UNWATCHED.md"}}' | scripts/hooks/cc_post_edit.sh; echo "rc=$?"          # rc=0, immédiat
+# SessionStart : rc=0 toujours ; installe core.hooksPath s'il manque
 echo '{}' | scripts/hooks/cc_session_start.sh; echo "rc=$?"   # rc=0
 ```
 
@@ -260,4 +247,4 @@ fast incorrecte ?) avant de conclure. Ne jamais livrer un tripwire rouge.
 Lister les fichiers créés/modifiés, rappeler :
 - `./scripts/install-hooks.sh` à lancer sur chaque nouveau clone ;
 - `echo <variante> > .tripwire-variant` pour changer la variante courante ;
-- les hooks {PLATEFORME} s'activent à la prochaine session.
+- les hooks Claude Code s'activent à la prochaine session.

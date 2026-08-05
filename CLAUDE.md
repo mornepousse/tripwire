@@ -1,7 +1,7 @@
 # tripwire — Claude Code instructions
 
-Plugin multi-plateforme (Claude Code / Mistral Vibe) qui scaffolde un pipeline
-anti-régression. Voir `README.md` pour l'usage.
+Plugin Claude Code qui scaffolde un pipeline anti-régression.
+Voir `README.md` pour l'usage.
 
 ## Workflow anti-régression (OBLIGATOIRE)
 

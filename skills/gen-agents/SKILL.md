@@ -1,18 +1,11 @@
 ---
 name: gen-agents
-description: Use when generating project-specialized subagents (test-author, code-reviewer, debugger, maintainer, security-auditor) into a target repo's agents directory (.claude/agents/ for Claude Code, .vibe/agents/ for Mistral Vibe). Reads the target config file (CLAUDE.md or VIBE.md) and repo structure to fill in project context. Trigger on "/tripwire:gen-agents", "génère les agents du projet", "ajoute un agent de review spécialisé".
+description: Use when generating project-specialized subagents (test-author, code-reviewer, debugger, maintainer, security-auditor) into a target repo's .claude/agents/ directory. Reads the target CLAUDE.md and repo structure to fill in project context. Trigger on "/tripwire:gen-agents", "génère les agents du projet", "ajoute un agent de review spécialisé".
 ---
 
 # tripwire:gen-agents — agents spécialisés au projet
 
-## Détection de plateforme (Étape 0)
-
-**D'abord, détecter la plateforme** :
-- Si `CLAUDE_PROJECT_DIR` est défini → AGENTS_DIR = ".claude/agents/" et CONFIG_MD = "CLAUDE.md"
-- Sinon si `VIBE_PROJECT_DIR` est défini → AGENTS_DIR = ".vibe/agents/" et CONFIG_MD = "VIBE.md"
-- Sinon → demander à l'utilisateur via AskUserQuestion
-
-Génère dans `{AGENTS_DIR}` du repo cible jusqu'à 5 agents à partir des
+Génère dans `.claude/agents/` du repo cible jusqu'à 5 agents à partir des
 templates de `templates/` : `test-author`, `code-reviewer`, `debugger`,
 `maintainer`, `security-auditor`.
 
@@ -21,7 +14,7 @@ templates de `templates/` : `test-author`, `code-reviewer`, `debugger`,
 1. **Demander** (AskUserQuestion, multiSelect) lesquels générer (défaut : les 3
    de base : `test-author`, `code-reviewer`, `debugger` ; `maintainer` et
    `security-auditor` proposés en option).
-2. **Collecter le contexte** — lire le `{CONFIG_MD}` cible et la structure du
+2. **Collecter le contexte** — lire le `CLAUDE.md` cible et la structure du
    repo pour remplir :
    - Vérifier d'abord que `scripts/check.sh` existe dans le repo cible ;
      sinon proposer `/tripwire:init` d'abord, ou remplacer la commande de
@@ -33,7 +26,7 @@ templates de `templates/` : `test-author`, `code-reviewer`, `debugger`,
      conventions clés ;
    - `{{TEST_CONVENTIONS}}` : où vivent les tests, comment les lancer,
      contraintes (parallel-safe, mocks…) ;
-   - `{{REVIEW_CHECKLIST}}` : extraire les conventions du {CONFIG_MD} en liste
+   - `{{REVIEW_CHECKLIST}}` : extraire les conventions du CLAUDE.md en liste
      vérifiable (ex. « pas de malloc dans les hot paths ») ;
    - `{{BUILD_DEBUG_CMDS}}` : commandes de build/log/diagnostic du projet ;
    - `{{DEPS_INFRA}}` : lister les fichiers de deps/lock et préoccupations
@@ -44,14 +37,10 @@ templates de `templates/` : `test-author`, `code-reviewer`, `debugger`,
      desktop/CLI : fichiers importés, IPC, arguments, presse-papier ;
      web/mobile : endpoints API, deep links / URL schemes, formulaires,
      storage local, désérialisation JSON. Si non évident, poser la question.
-   Si le {CONFIG_MD} cible est pauvre, poser 1-2 questions ciblées plutôt
+   Si le CLAUDE.md cible est pauvre, poser 1-2 questions ciblées plutôt
    qu'inventer.
-3. **Générer** `{AGENTS_DIR}/<proj>-<role>.md` pour chaque agent choisi.
+3. **Générer** `.claude/agents/<proj>-<role>.md` pour chaque agent choisi.
    Ne pas écraser un agent existant sans accord explicite.
-   **Adaptation plateforme** : les champs `color:`, `model:` et `memory:` du
-   frontmatter sont spécifiques à Claude Code — si PLATEFORME = vibe, supprimer
-   ces lignes (et la section « Mémoire persistante » du corps pour `maintainer`
-   et `security-auditor`).
    **Économie de modèles** : `test-author`, `code-reviewer` et `maintainer`
    sont épinglés `model: sonnet` (jugement = plancher sonnet ; épingler évite
    d'hériter d'un modèle de session plus coûteux sans nécessité). `debugger`
@@ -59,7 +48,7 @@ templates de `templates/` : `test-author`, `code-reviewer`, `debugger`,
    modèle économique (haiku) sur un agent de jugement — une hallucination de
    verdict n'est rattrapée par aucun oracle.
 4. **Vérifier** : frontmatter présent (`name`, `description` avec exemples),
-   placeholders tous remplis (`grep -n '{{' {AGENTS_DIR}/<proj>-*.md` ne
+   placeholders tous remplis (`grep -n '{{' .claude/agents/<proj>-*.md` ne
    doit rien retourner) ; et valider le YAML du frontmatter de chaque agent
    généré — si pyyaml est disponible :
    `python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]).read().split('---')[1])" <fichier>` ;
@@ -67,4 +56,4 @@ templates de `templates/` : `test-author`, `code-reviewer`, `debugger`,
    chaînes **double-quotées sur une seule ligne** (quotes internes échappées
    `\"`, exemples encodés avec des `\n` littéraux), comme dans les templates.
 5. **Rappeler** : les agents sont disponibles à la prochaine session, et la
-   section « Quand invoquer les agents » peut être ajoutée au {CONFIG_MD} cible.
+   section « Quand invoquer les agents » peut être ajoutée au CLAUDE.md cible.

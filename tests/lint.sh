@@ -18,8 +18,7 @@ done
 
 # JSON valide : manifests plugin + templates de config JSON.
 for j in .claude-plugin/plugin.json .claude-plugin/marketplace.json \
-         skills/init/templates/settings.json.tmpl \
-         skills/init/templates/vibe-config.json.tmpl; do
+         skills/init/templates/settings.json.tmpl; do
   if ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$j" 2>/dev/null; then
     echo "✗ JSON invalide: $j" >&2; rc=1
   fi

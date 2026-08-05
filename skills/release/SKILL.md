@@ -5,13 +5,6 @@ description: Use when cutting a release in a tripwire-enabled project — git ta
 
 # tripwire:release — workflow de release générique
 
-## Détection de plateforme (Étape 0)
-
-**D'abord, détecter la plateforme pour savoir quel fichier de config lire** :
-- Si `CLAUDE_PROJECT_DIR` est défini → CONFIG_MD = "CLAUDE.md"
-- Sinon si `VIBE_PROJECT_DIR` est défini → CONFIG_MD = "VIBE.md"
-- Sinon → CONFIG_MD = "CLAUDE.md" (défaut pour compatibilité descendante)
-
 ## Principes (non négociables)
 
 1. **Tag git `vX.Y.Z` = source de vérité de la version.** Jamais de fichier
@@ -24,7 +17,7 @@ description: Use when cutting a release in a tripwire-enabled project — git ta
 
 ## Première utilisation sur un projet
 
-Si le {CONFIG_MD} cible n'a pas de section « Release », demander :
+Si le CLAUDE.md cible n'a pas de section « Release », demander :
 - commande(s) de build des artefacts (et leurs chemins de sortie) ;
 - artefacts à attacher à la release (globs) ;
 - **fichiers dupliquant la version** : manifests portant un champ `version` qui
@@ -34,7 +27,7 @@ Si le {CONFIG_MD} cible n'a pas de section « Release », demander :
 - une **checklist smoke-test** : 3 à 8 vérifications manuelles du produit réel
   (lancer l'app et tester les flux critiques, flasher et tester le matériel,
   exécuter les commandes principales…), ou "aucune" explicitement.
-Puis **persister** ces réponses dans une section `## Release` du {CONFIG_MD}
+Puis **persister** ces réponses dans une section `## Release` du CLAUDE.md
 cible pour les runs suivants (commandes de build, artefacts et fichiers de
 version au niveau de la section, checklist sous-section `### Smoke test`).
 
@@ -55,7 +48,7 @@ version au niveau de la section, checklist sous-section `### Smoke test`).
    release, facile à rater quand la demande initiale ne parlait que d'un fix.
    Si `git describe --tags` échoue (aucun tag existant — première release),
    proposer `v0.1.0` comme premier tag.
-2. **Sync des fichiers de version** : si la section `## Release` du {CONFIG_MD}
+2. **Sync des fichiers de version** : si la section `## Release` du CLAUDE.md
    liste des fichiers dupliquant la version, les mettre à jour vers `X.Y.Z` et
    les committer AVANT de tagger (commit `chore: bump vX.Y.Z`). Le tag doit
    pointer sur un commit où manifests et tag concordent.
@@ -67,7 +60,7 @@ version au niveau de la section, checklist sous-section `### Smoke test`).
    ```
    Rouge → STOP, diagnostiquer, ne pas tagger.
 4. **Smoke test manuel** : lire la sous-section `### Smoke test` du `## Release`
-   du {CONFIG_MD} cible. La dérouler item par item avec l'utilisateur (AskUserQuestion —
+   du CLAUDE.md cible. La dérouler item par item avec l'utilisateur (AskUserQuestion —
    un item peut être coché, échoué, ou sauté avec raison).
    - Un item **échoué** → STOP, pas de tag.
    - Tous les items sautés → demander confirmation explicite avant de continuer.
@@ -82,7 +75,7 @@ version au niveau de la section, checklist sous-section `### Smoke test`).
    ```
    En cas d'échec du build à l'étape 6 : ne pas laisser un tag orphelin —
    `git push origin :refs/tags/vX.Y.Z && git tag -d vX.Y.Z`, corriger, recommencer.
-6. **Build des artefacts** : lire la section `## Release` du {CONFIG_MD} cible
+6. **Build des artefacts** : lire la section `## Release` du CLAUDE.md cible
    pour obtenir les commandes de build et les globs d'artefacts, puis les exécuter.
    Vérifier que chaque artefact attendu existe.
 7. **Créer la release** — détecter le forge via `git remote get-url origin` :

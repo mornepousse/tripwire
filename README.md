@@ -2,7 +2,7 @@
 
 *[Version française](README.fr.md)*
 
-**Multi-platform** plugin (Claude Code and Mistral Vibe) that scaffolds an anti-regression pipeline into any repo.
+Claude Code plugin that scaffolds an anti-regression pipeline into any repo.
 Extracted from the KaSe_firmware project's workflow.
 
 ## The invariant
@@ -124,8 +124,6 @@ dependency-free and portable.
 
 ## Installation
 
-### For Claude Code
-
 ```bash
 # From GitHub:
 claude plugin marketplace add https://github.com/mornepousse/tripwire
@@ -135,18 +133,11 @@ claude plugin marketplace add https://gitlab.com/harrael/tripwire
 claude plugin install tripwire@tripwire
 ```
 
-### For Mistral Vibe
-
-```bash
-vibe plugin marketplace add https://github.com/mornepousse/tripwire
-vibe plugin install tripwire@tripwire
-```
-
 ## Skills
 
 | Skill | Usage |
 |---|---|
-| `/tripwire:init` | Scaffolds check.sh (skip-if-green, monorepo scoping, lock, budget guard, test ratchet), git hooks, platform hooks (Claude Code: PostToolUse/Stop/SessionStart; Mistral Vibe: onEdit/onWrite/onStop), optional staged CI, config section (CLAUDE.md or VIBE.md). **Re-run on an equipped project**: detects outdated scaffolds via the `# tripwire-template:` stamp and proposes a targeted update without touching your commands |
+| `/tripwire:init` | Scaffolds check.sh (skip-if-green, monorepo scoping, lock, budget guard, test ratchet), git hooks, Claude Code hooks (PostToolUse/Stop/SessionStart), optional staged CI, CLAUDE.md config section. **Re-run on an equipped project**: detects outdated scaffolds via the `# tripwire-template:` stamp and proposes a targeted update without touching your commands |
 | `/tripwire:gen-agents` | Generates up to 5 project-specialized agents: test-author / code-reviewer / debugger / maintainer / security-auditor (the last two with persistent cross-session memory; judgment agents pinned to `model: sonnet`) |
 | `/tripwire:release` | Release workflow: git tag = version, semver bump proposed from commits, green check mandatory, version-manifest sync, glab/gh release |
 | `/tripwire:status` | One-shot diagnosis: scaffold up to date? hooks active? last green/red? duration drift? watched-path blind spots? `--fleet` mode: a table of all equipped repos |
@@ -181,13 +172,6 @@ Two Claude Code mechanisms combine with tripwire for org-wide deployment
 
 The invariant is unchanged: managed hooks only call the current repo's
 `scripts/check.sh`; each project keeps its own definition of "green".
-
-## Automatic platform detection
-
-The plugin detects whether you're on **Claude Code** or **Mistral Vibe** via
-environment variables (`CLAUDE_PROJECT_DIR` / `VIBE_PROJECT_DIR`) and adapts:
-generated hooks, config file (.claude/settings.json or .vibe/config.json),
-documentation file (CLAUDE.md or VIBE.md).
 
 ## License
 

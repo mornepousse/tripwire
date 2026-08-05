@@ -34,12 +34,6 @@ sed -e 's|{{WATCHED_PATH_PATTERNS}}|*"/src/"*\|*"/test/"*|g' \
     "$PLUGIN/skills/init/templates/cc_post_edit.sh.tmpl" > scripts/hooks/cc_post_edit.sh
 # Stop : garde-fou --fast pur, plus aucun placeholder (build complet = pre-push)
 cp "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" scripts/hooks/cc_stop.sh
-# Templates Mistral Vibe (payload: file_path au niveau racine, pas tool_input)
-sed -e 's|{{WATCHED_PATH_PATTERNS}}|*"/src/"*\|*"/test/"*|g' \
-    -e 's|{{TEST_PATH_PATTERNS}}|*"/test/"*|g' \
-    -e 's|{{ASSERT_PATTERN}}|assert|g' \
-    "$PLUGIN/skills/init/templates/vibe_post_edit.sh.tmpl" > scripts/hooks/vibe_post_edit.sh
-cp "$PLUGIN/skills/init/templates/vibe_stop.sh.tmpl" scripts/hooks/vibe_stop.sh
 chmod +x scripts/check.sh scripts/hooks/* scripts/install-hooks.sh
 
 fails=0
@@ -74,13 +68,6 @@ echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_e
 chk "post-edit surveillé vert" 0 $?
 echo '{"tool_input":{"file_path":"'"$TMP"'/README.md"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
 chk "post-edit non surveillé ignoré" 0 $?
-scripts/hooks/vibe_stop.sh </dev/null >/dev/null 2>&1;   chk "vibe stop hook vert" 0 $?
-! grep 'scripts/check.sh' scripts/hooks/vibe_stop.sh | grep -qv -- '--fast'
-chk "vibe stop: tout appel check.sh est en --fast" 0 $?
-echo '{"file_path":"'"$TMP"'/src/a.c"}' | scripts/hooks/vibe_post_edit.sh >/dev/null 2>&1
-chk "vibe post-edit surveillé vert" 0 $?
-echo '{"file_path":"'"$TMP"'/README.md"}' | scripts/hooks/vibe_post_edit.sh >/dev/null 2>&1
-chk "vibe post-edit non surveillé ignoré" 0 $?
 
 # install-hooks
 ./scripts/install-hooks.sh >/dev/null 2>&1
@@ -216,8 +203,6 @@ printf 'assert(a);\n' > test/t.c            # 3 -> 1 : perte nette de 2
 OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/test/t.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"; rc=$?
 chk "garde assertions: rc 0 (non bloquant)" 0 $rc
 echo "$OUT" | grep -q "assertion(s) en moins"; chk "garde assertions: contexte émis" 0 $?
-OUT="$(echo '{"file_path":"'"$TMP"'/test/t.c"}' | scripts/hooks/vibe_post_edit.sh 2>&1 >/dev/null)"
-echo "$OUT" | grep -q "assertion(s) en moins"; chk "garde assertions: parité vibe (stderr)" 0 $?
 printf 'assert(a);\nassert(b);\nassert(c);\nassert(d);\n' > test/t.c   # 3 -> 4 : gain
 OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/test/t.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
 echo "$OUT" | grep -q "assertion"; chk "garde assertions: gain -> silencieux" 1 $?
@@ -244,8 +229,6 @@ scripts/hooks/pre-push </dev/null >/dev/null 2>&1;     chk "pre-push bloque" 1 $
 echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
 chk "post-edit rouge -> rc 2" 2 $?
 scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop rouge -> rc 2" 2 $?
-echo '{"file_path":"'"$TMP"'/src/a.c"}' | scripts/hooks/vibe_post_edit.sh >/dev/null 2>&1
-chk "vibe post-edit rouge -> rc 2" 2 $?
 
 # Debounce : sous la fenêtre -> pas de re-check (rc 0 même si rouge dessous)
 echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_DEBOUNCE=999 scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
@@ -254,9 +237,6 @@ echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_DEBOUNCE=999 s
 chk "debounce: 2e passage sous la fenêtre -> rc 0" 0 $?
 echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
 chk "debounce: désactivé (0) -> check réel rc 2" 2 $?
-scripts/hooks/vibe_stop.sh </dev/null >/dev/null 2>&1; chk "vibe stop rouge -> rc 2" 2 $?
-printf '{"stop_hook_active": true}' | scripts/hooks/vibe_stop.sh >/dev/null 2>&1
-chk "vibe garde stop_hook_active -> rc 0" 0 $?
 
 # Rouge : fast vert mais build cassé -> full rouge, fast vert
 printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh
