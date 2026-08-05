@@ -73,8 +73,8 @@ mise à jour :
 | v0.9.0 | qualité des tests — check.sh : ratchet (`TEST_COUNT_CMD` + `.tripwire-testcount` committé, strict au pre-push) + avis TDD (`SRC_GREP`/`TEST_GREP`) ; hooks post-edit : garde anti-affaiblissement (`TEST_PATH_PATTERNS`/`ASSERT_PATTERN`) ; pre-push : `TRIPWIRE_RATCHET_STRICT=1` ; nouveau skill test-review |
 | v0.10.0 | doctrine économie de modèles — section « Économie de modèles » dans les sections MD scaffoldées ; gen-agents : `model: sonnet` épinglé sur les agents de jugement ; check.sh **inchangé** (tampon v0.9.0 valide) — re-scaffold léger : section MD + regénérer les agents |
 | v0.10.1 | docs uniquement (carte de cohabitation + doctrine sécurité des greffons tiers) — **rien à re-scaffolder** |
-| v0.11.0 | **support Mistral Vibe retiré** (plugin Claude Code uniquement) — un projet scaffoldé côté Vibe n'est plus mis à jour par ce skill. Hook Stop : ne lance plus que `check.sh --fast` (le build/e2e complet reste au pre-push) — re-scaffold : `cc_stop.sh` + la puce `Stop` de la section CLAUDE.md ; check.sh **inchangé** depuis v0.10.2 |
 | v0.10.2 | check.sh : fix fuite `No such file or directory` sur stderr au 1er init du ratchet — la lecture `REF="$(tr … < .tripwire-testcount)"` échoue sur le `<` avant que `2>/dev/null` prenne effet quand le fichier n'existe pas encore ; remplacée par `cat … 2>/dev/null \| tr`. Cosmétique (verdict et fichier inchangés) — re-scaffold : mettre à jour cette seule ligne de check.sh |
+| v0.11.0 | **support Mistral Vibe retiré** (plugin Claude Code uniquement) — un projet scaffoldé côté Vibe n'est plus mis à jour par ce skill. Hook Stop : ne lance plus que `check.sh --fast` (le build/e2e complet reste au pre-push) — re-scaffold : `cc_stop.sh` + la puce `Stop` de la section CLAUDE.md ; check.sh **inchangé** depuis v0.10.2 |
 | v0.12.0 | check.sh : assertion de divergences déclarées (`.tripwire-divergences`, TSV committé, rouge si un motif déclaré disparaît de son fichier hôte). Re-scaffold : mettre à jour check.sh + créer la fiche si le repo a des écarts |
 
 ### Cohabitation avec l'outillage tiers (pre-commit, TDD Guard…)
@@ -189,6 +189,16 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 des écarts. Créée à la main, une ligne par écart assumé, **committée** (comme
 `.tripwire-testcount`) — son diff est le mécanisme de review.
 
+- Deux cas écrivent des lignes **dès le scaffold initial** : la procédure
+  « dialecte divergent » (un alias = une divergence, voir Étape 0) et **toute
+  dégradation d'environnement demandée par l'utilisateur** (test désactivé,
+  étape de build sautée, garde assouplie parce que la machine ou la CI ne suit
+  pas). La déclarer immédiatement : c'est exactement ce genre de dégradation
+  qu'une propagation de templates a écrasé le 2026-08-05, en sortant verte.
+- Le fichier hôte d'une divergence doit être **suivi par git** : un fichier
+  gitignoré ne change pas l'empreinte du skip-si-déjà-vert, sa perte peut donc
+  passer sous un « déjà vert — skip ».
+
 ### Placeholders
 
 | Placeholder | Valeur |
@@ -248,8 +258,15 @@ grep -rn '{{' scripts/ .claude/settings.json CLAUDE.md && echo "PLACEHOLDERS RES
 test -x scripts/hooks/pre-push
 git config --get core.hooksPath    # doit afficher scripts/hooks
 ./scripts/check.sh --fast          # doit être VERT
-# Divergences : si le repo en déclare, l'assertion doit être verte
-test -f .tripwire-divergences && ./scripts/check.sh --fast   # doit être VERT
+# Divergences : si le repo en déclare, l'assertion doit être verte.
+# --force est indispensable : sans lui, le check précédent a déjà stampé l'état
+# et le skip-si-déjà-vert rendrait 0 sans rien revérifier.
+# Fiche absente = cas normal, ce n'est pas un échec.
+if [ -f .tripwire-divergences ]; then
+  ./scripts/check.sh --fast --force        # doit être VERT
+else
+  echo "pas de fiche de divergences — normal si le repo n'a aucun écart assumé"
+fi
 # Hook PostToolUse : un chemin surveillé (doit durer ~ la commande fast) puis un non surveillé (retour immédiat)
 echo '{"tool_input":{"file_path":"'$PWD'/<chemin surveillé>/x"}}' | scripts/hooks/cc_post_edit.sh; echo "rc=$?"   # rc=0
 echo '{"tool_input":{"file_path":"'$PWD'/UNWATCHED.md"}}' | scripts/hooks/cc_post_edit.sh; echo "rc=$?"          # rc=0, immédiat

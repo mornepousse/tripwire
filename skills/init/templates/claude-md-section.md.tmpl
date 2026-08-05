@@ -20,7 +20,10 @@ Source unique de vérité : `scripts/check.sh`.
 **Divergences déclarées** : `.tripwire-divergences` (committé) liste les écarts
 assumés au scaffold standard — mode maison, dégradation d'environnement, alias
 de dialecte. Une ligne `fichier<TAB>motif<TAB>pourquoi` ; `check.sh` rend rouge
-la disparition d'un motif déclaré. **Limite** : un écart non déclaré n'est
+la disparition d'un motif déclaré. Le fichier hôte d'une divergence doit être
+**suivi par git** : un fichier gitignoré ne change pas l'empreinte du
+skip-si-déjà-vert, donc sa perte peut passer sous un « déjà vert — skip » — il
+n'est pas protégé de façon fiable. **Limite** : un écart non déclaré n'est
 protégé par rien et le prochain re-scaffold l'effacera — toute divergence
 délibérée se déclare au moment où on l'introduit.
 

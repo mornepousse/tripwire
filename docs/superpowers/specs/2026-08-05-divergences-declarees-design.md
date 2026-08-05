@@ -86,9 +86,15 @@ construirait la barrière sur du vide :
   (`check.sh.tmpl:151`) : se loger dans la phase rapide suffit à couvrir tous
   les modes.
 - l'empreinte du skip-si-déjà-vert (`check.sh.tmpl:96-103`) inclut
-  `git diff HEAD` et les fichiers non suivis : écraser un fichier suivi change
-  l'empreinte, donc le skip **ne peut pas** masquer une divergence fraîchement
-  perdue.
+  `git diff HEAD` et `git ls-files -o --exclude-standard` : écraser un fichier
+  **suivi par git** (ou au moins non gitignoré) change l'empreinte, donc le skip
+  ne masque pas une divergence fraîchement perdue — à cette condition près.
+  **Limite connue** : `--exclude-standard` exclut les fichiers gitignorés. Le
+  fichier hôte d'une divergence qui serait gitignoré ne change pas l'empreinte ;
+  `check.sh --fast` sans `--force` sort alors « déjà vert — skip » (rc 0) alors
+  que le motif a disparu. Vérifié empiriquement. Le fichier hôte d'une
+  divergence doit donc être suivi par git — un fichier gitignoré n'est pas
+  protégé de façon fiable.
 
 ## Pièce 3 — Ce que `/tripwire:init` en fait
 
