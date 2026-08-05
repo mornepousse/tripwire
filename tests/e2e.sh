@@ -173,8 +173,30 @@ FOUND="$(git rev-parse refs/bisect/bad 2>/dev/null)"
 git bisect reset >/dev/null 2>&1
 chk "bisect: commit fautif localisé" "$BAD_EXPECTED" "$FOUND"
 
-# ===== Ratchet de tests =====
+# ===== Divergences déclarées =====
+# La perte d'un écart assumé doit être un verdict machine, pas une relecture.
 printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh   # le bloc bisect laisse fast.sh cassé
+rm -f .tripwire-divergences
+./scripts/check.sh --fast --force >/dev/null 2>&1
+chk "divergences: fiche absente -> inerte" 0 $?
+printf '# fichier\tmotif\tpourquoi\n\n' > .tripwire-divergences
+./scripts/check.sh --fast --force >/dev/null 2>&1
+chk "divergences: fiche sans ligne utile -> vert" 0 $?
+printf 'scripts/hooks/cc_stop.sh\t--fast\tgarde-fou leger: le Stop ne lance que la phase rapide\n' > .tripwire-divergences
+./scripts/check.sh --fast --force >/dev/null 2>&1
+chk "divergences: motif présent -> vert" 0 $?
+cp scripts/hooks/cc_stop.sh "$TMP/cc_stop.bak"
+printf '#!/usr/bin/env bash\nexit 0\n' > scripts/hooks/cc_stop.sh   # écrasement: le motif disparaît
+OUT="$(./scripts/check.sh --fast --force 2>&1)"
+chk "divergences: motif perdu -> rouge" 1 $?
+echo "$OUT" | grep -q "divergence perdue"
+chk "divergences: message cite la perte" 0 $?
+echo "$OUT" | grep -q "garde-fou leger"
+chk "divergences: message cite le pourquoi" 0 $?
+cp "$TMP/cc_stop.bak" scripts/hooks/cc_stop.sh && chmod +x scripts/hooks/cc_stop.sh
+rm -f .tripwire-divergences
+
+# ===== Ratchet de tests =====
 echo 5 > ntests.txt
 ./scripts/check.sh --fast --force >/dev/null 2>&1
 chk "ratchet: bootstrap crée la référence" "5" "$(cat .tripwire-testcount 2>/dev/null)"

@@ -113,6 +113,31 @@ fi
 
 T_START=$SECONDS
 
+# ---- Divergences déclarées : un écart assumé ne disparaît pas en silence ----
+# .tripwire-divergences (committé), TSV : fichier<TAB>motif<TAB>pourquoi
+# Absent/vide -> inerte. Motif comparé en chaîne littérale, jamais en regex.
+check_divergences() {
+  [ -f .tripwire-divergences ] || return 0
+  local rc=0 n=0 f m w
+  while IFS=$'\t' read -r f m w || [ -n "$f" ]; do
+    n=$((n + 1))
+    case "$f" in ''|'#'*) continue ;; esac
+    if [ ! -f "$f" ]; then
+      fail "divergence perdue : $f n'existe plus (motif « $m »)"
+      [ -n "$w" ] && echo "  motif déclaré : $w" >&2
+      rc=1; continue
+    fi
+    if ! grep -qF -- "$m" "$f"; then
+      fail "divergence perdue : $f ne contient plus « $m »"
+      [ -n "$w" ] && echo "  motif déclaré : $w" >&2
+      echo "  → rétablir la divergence, ou retirer sa ligne de .tripwire-divergences" >&2
+      echo "    si l'abandon est voulu (le retrait part dans le diff, il sera vu en review)." >&2
+      rc=1
+    fi
+  done < .tripwire-divergences
+  return "$rc"
+}
+
 # ---- Phase rapide (boucle courte, budget TRIPWIRE_FAST_BUDGET s) ----
 run_fast() {
   info "${FAST_LABEL}…"
@@ -148,6 +173,7 @@ build_variant() {
 }
 
 rc=0
+check_divergences || rc=1
 run_fast || rc=1
 
 if [ "$MODE" = "single" ]; then
