@@ -122,6 +122,10 @@ check_divergences() {
   while IFS=$'\t' read -r f m w || [ -n "$f" ]; do
     n=$((n + 1))
     case "$f" in ''|'#'*) continue ;; esac
+    if [ -z "$m" ]; then
+      fail "divergence ligne $n : ligne malformée (attendu: fichier<TAB>motif<TAB>pourquoi)"
+      rc=1; continue
+    fi
     if [ ! -f "$f" ]; then
       fail "divergence perdue : $f n'existe plus (motif « $m »)"
       [ -n "$w" ] && echo "  motif déclaré : $w" >&2

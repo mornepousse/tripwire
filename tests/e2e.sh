@@ -195,6 +195,19 @@ echo "$OUT" | grep -q "garde-fou leger"
 chk "divergences: message cite le pourquoi" 0 $?
 cp "$TMP/cc_stop.bak" scripts/hooks/cc_stop.sh && chmod +x scripts/hooks/cc_stop.sh
 rm -f "$TMP/cc_stop.bak"
+printf 'scripts/hooks/absent.sh\tX\tfichier hote disparu\n' > .tripwire-divergences
+./scripts/check.sh --fast --force >/dev/null 2>&1
+chk "divergences: fichier hôte absent -> rouge" 1 $?
+printf 'un-seul-champ\n' > .tripwire-divergences
+OUT="$(./scripts/check.sh --fast --force 2>&1)"
+chk "divergences: ligne malformée -> rouge" 1 $?
+echo "$OUT" | grep -q "ligne 1"
+chk "divergences: malformée cite le numéro de ligne" 0 $?
+# Motif à caractères regex : en regex, ALL_VARIANTS[@] matcherait « ALL_VARIANTS@ »,
+# chaîne absente du fichier. Vert ici => la comparaison est bien littérale.
+printf 'scripts/check.sh\tALL_VARIANTS[@]\tpreuve que le motif est compare en chaine litterale\n' > .tripwire-divergences
+./scripts/check.sh --fast --force >/dev/null 2>&1
+chk "divergences: motif littéral (-F) -> vert" 0 $?
 rm -f .tripwire-divergences
 
 # ===== Ratchet de tests =====
