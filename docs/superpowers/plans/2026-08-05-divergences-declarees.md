@@ -21,6 +21,11 @@
 - Ratchet : `.tripwire-testcount` passe de **71 à 83** (12 assertions ajoutées). Toute autre valeur finale est un bug du plan.
 - Jamais de signature GPG : `git commit --no-gpg-sign`.
 
+**Deux arbitrages pris avant exécution (2026-08-05), qui font loi sur la grille de revue :**
+
+- **La duplication de `check_divergences()` entre `skills/init/templates/check.sh.tmpl` et `scripts/check.sh` est voulue et structurelle.** Un `check.sh` scaffoldé est copié dans d'autres repos : il ne peut rien sourcer du plugin, il doit être autonome. La duplication scaffold ↔ dogfood est inhérente au produit. Elle est documentée par un commentaire dans les deux fichiers. Ce n'est pas un défaut à corriger.
+- **Les assertions de la tâche 3 sont vertes dès leur écriture, et c'est correct.** Elles sont rouges contre le code d'avant la tâche 1 ; elles ne passent immédiatement que parce qu'on les écrit après. C'est une couverture de non-régression par un autre point d'entrée (le hook Stop), pas une tautologie.
+
 ---
 
 ### Task 1 : L'assertion — cas inerte, cas vert, cas rouge
@@ -231,7 +236,9 @@ posé à la tâche 1 — il n'y en a qu'un, à la toute fin de la section.
 - [ ] **Step 2: Lancer et constater**
 
 Run: `bash tests/e2e.sh 2>&1 | grep divergences`
-Expected: les deux assertions **PASSENT** immédiatement. Si `hook Stop mord` échoue avec `got 0`, c'est que `check_divergences` n'est pas appelée dans le mode `--fast` — revenir sur la tâche 1, étape 3.
+Expected: les deux assertions **PASSENT** immédiatement — c'est le résultat correct, pas un test creux. Ces assertions seraient rouges contre le code d'avant la tâche 1 (sans `check_divergences`, le hook Stop sort en 0 au lieu de 2) ; elles passent ici parce qu'on les écrit après. Leur rôle est la non-régression par un autre point d'entrée : elles interdisent qu'une refonte future des hooks fasse sauter la barrière sans que personne le voie.
+
+Si `hook Stop mord` échoue avec `got 0`, c'est que `check_divergences` n'est pas appelée dans le mode `--fast` — revenir sur la tâche 1, étape 3.
 
 - [ ] **Step 3: Vérifier le total**
 
@@ -265,6 +272,15 @@ CLAUDE.md pose que « le plugin mange sa propre nourriture ». Le repo tripwire 
 - [ ] **Step 1: Porter la fonction**
 
 Copier la fonction `check_divergences()` de `skills/init/templates/check.sh.tmpl` dans `scripts/check.sh`, au même emplacement relatif (juste avant la phase rapide), et ajouter l'appel `check_divergences || rc=1` avant `run_fast || rc=1`.
+
+La duplication est voulue (cf. arbitrages des contraintes globales). La documenter par un commentaire **au-dessus de la fonction dans les deux fichiers**, texte exact :
+
+```bash
+# NOTE: cette fonction est dupliquée entre skills/init/templates/check.sh.tmpl
+# et scripts/check.sh (dogfood). Duplication assumée : un check.sh scaffoldé est
+# copié dans d'autres repos, il doit être autonome et ne rien sourcer du plugin.
+# Toute correction ici se reporte à l'identique dans l'autre fichier.
+```
 
 - [ ] **Step 2: Vérifier l'inertie**
 
