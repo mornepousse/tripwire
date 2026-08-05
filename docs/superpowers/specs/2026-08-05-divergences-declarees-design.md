@@ -137,7 +137,9 @@ Dans `tests/e2e.sh`, sur le repo jouet :
 La dernière rejoue l'incident : on écrase un `cc_stop.sh` porteur d'une
 dégradation déclarée et on vérifie que le tripwire mord.
 
-Ratchet attendu : ~71 → ~79.
+Ratchet attendu : 71 → 83 (les huit lignes ci-dessus se traduisent en douze
+assertions `chk`, plusieurs cas vérifiant à la fois le code de retour et le
+contenu du message).
 
 ## Reprise de la flotte (9 repos)
 
