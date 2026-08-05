@@ -208,7 +208,15 @@ chk "divergences: malformée cite le numéro de ligne" 0 $?
 printf 'scripts/check.sh\tALL_VARIANTS[@]\tpreuve que le motif est compare en chaine litterale\n' > .tripwire-divergences
 ./scripts/check.sh --fast --force >/dev/null 2>&1
 chk "divergences: motif littéral (-F) -> vert" 0 $?
-rm -f .tripwire-divergences
+printf 'scripts/hooks/cc_post_edit.sh\t*"/test/"*\tchemins de test surveilles par la garde anti-affaiblissement\n' > .tripwire-divergences
+./scripts/check.sh --fast --force >/dev/null 2>&1
+chk "divergences: motif présent (post-edit) -> vert" 0 $?
+cp scripts/hooks/cc_post_edit.sh "$TMP/pe.bak"
+printf '#!/usr/bin/env bash\nexit 0\n' > scripts/hooks/cc_post_edit.sh   # rejoue l'écrasement du 2026-08-05
+scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1
+chk "divergences: hook Stop mord sur divergence perdue -> rc 2" 2 $?
+cp "$TMP/pe.bak" scripts/hooks/cc_post_edit.sh && chmod +x scripts/hooks/cc_post_edit.sh
+rm -f .tripwire-divergences "$TMP/cc_stop.bak" "$TMP/pe.bak"   # le repo jouet repart propre
 
 # ===== Ratchet de tests =====
 echo 5 > ntests.txt
