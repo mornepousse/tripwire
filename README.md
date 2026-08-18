@@ -182,6 +182,18 @@ claude plugin install tripwire@tripwire
 ## Updating an equipped project
 
 Every generated `check.sh` carries a `# tripwire-template: vX.Y.Z` stamp.
+**You don't have to remember.** The plugin ships its own `SessionStart` hook:
+at the start of every session, in whatever repo you open, it compares that
+repo's stamp to the plugin version and — if the scaffold is behind — tells the
+agent to run `/tripwire:init` before other work, naming both versions. It never
+writes and never blocks; writing stays init's job, because only init knows how
+to re-inject your project values and arbitrate declared divergences.
+
+This hook lives in the **plugin**, not in the scaffolded files, and that is the
+whole point: an equipped repo gets it from `claude plugin update` alone, with
+nothing to re-scaffold. Otherwise the mechanism that reminds you to propagate
+would itself need propagating — and the fleet rots while you wait.
+
 After `claude plugin update tripwire@tripwire`, re-run `/tripwire:init` in the
 project: the skill compares the stamp to the plugin version, announces what
 changed, and updates the scaffolded files while preserving your fast/build

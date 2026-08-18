@@ -86,6 +86,32 @@ OUT="$(echo '{}' | scripts/hooks/cc_session_start.sh 2>/dev/null)"; rc=$?
 chk "session-start idempotent (rc)" 0 $rc
 chk "session-start idempotent (silencieux)" "" "$OUT"
 
+# ===== Hook SessionStart du plugin : un scaffold en retard se signale tout seul =====
+# Ce hook vit dans le PLUGIN, pas dans le scaffold : il fonctionne donc sur un
+# dépôt équipé dès `claude plugin update`, sans rien y re-scaffolder. C'est ce qui
+# casse l'œuf et la poule — sinon le correctif de la propagation aurait lui-même
+# besoin d'être propagé.
+PSS="$PLUGIN/hooks/session_start.sh"
+PV="$(sed -n 's/.*"version"[: ]*"\([^"]*\)".*/\1/p' "$PLUGIN/.claude-plugin/plugin.json" | head -1)"
+mkfx() { mkdir -p "$TMP/$1/scripts"; [ -n "${2:-}" ] && printf '#!/usr/bin/env bash\n# tripwire-template: %s\n' "$2" > "$TMP/$1/scripts/check.sh"; return 0; }
+mkfx fx-none ""
+mkfx fx-ajour "v$PV"
+mkfx fx-retard "v0.1.0"
+mkfx fx-sanstampon "x"
+printf '#!/usr/bin/env bash\necho rien\n' > "$TMP/fx-sanstampon/scripts/check.sh"
+run_pss() { ( cd "$TMP/$1" && CLAUDE_PLUGIN_ROOT="$PLUGIN" bash "$PSS" </dev/null 2>/dev/null ); }
+
+OUT="$(run_pss fx-none)"; chk "session-start plugin: hors dépôt tripwire -> rc 0" 0 $?
+chk "session-start plugin: hors dépôt tripwire -> silencieux" "" "$OUT"
+OUT="$(run_pss fx-ajour)"; chk "session-start plugin: scaffold à jour -> rc 0" 0 $?
+chk "session-start plugin: scaffold à jour -> silencieux" "" "$OUT"
+OUT="$(run_pss fx-retard)"; chk "session-start plugin: scaffold en retard -> rc 0 (jamais bloquant)" 0 $?
+echo "$OUT" | grep -q "tripwire:init"; chk "session-start plugin: en retard -> prescrit /tripwire:init" 0 $?
+echo "$OUT" | grep -q "v0.1.0"; chk "session-start plugin: en retard -> cite la version du scaffold" 0 $?
+echo "$OUT" | grep -q "$PV"; chk "session-start plugin: en retard -> cite la version du plugin" 0 $?
+OUT="$(run_pss fx-sanstampon)"
+echo "$OUT" | grep -q "tripwire:init"; chk "session-start plugin: tampon absent -> prescrit /tripwire:init" 0 $?
+
 # ===== Options gros projets =====
 # Skip-si-déjà-vert : même état -> skip ; --force relance ; état modifié -> re-run
 ./scripts/check.sh --fast >/dev/null 2>&1                       # stampe l'état courant

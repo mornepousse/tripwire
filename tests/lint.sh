@@ -7,7 +7,7 @@ rc=0
 
 # Syntaxe bash : scripts de test + templates shell (les placeholders {{X}} restent
 # des mots valides pour bash -n).
-for f in tests/*.sh skills/init/templates/*.tmpl; do
+for f in tests/*.sh hooks/*.sh skills/init/templates/*.tmpl; do
   case "$f" in
     *.json.tmpl|*md-section*.tmpl|*.yml.tmpl) continue ;;  # non-shell
   esac
@@ -18,6 +18,7 @@ done
 
 # JSON valide : manifests plugin + templates de config JSON.
 for j in .claude-plugin/plugin.json .claude-plugin/marketplace.json \
+         hooks/hooks.json \
          skills/init/templates/settings.json.tmpl; do
   if ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$j" 2>/dev/null; then
     echo "✗ JSON invalide: $j" >&2; rc=1

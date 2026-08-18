@@ -29,6 +29,13 @@ gravité : **pendant → informe, à la conclusion → bloque, au push → bloqu
 - `Stop` → `check.sh --fast` et **bloque** (le e2e complet reste au pre-push).
 - `pre-push` → check complet, **bloquant**.
 
+**Hook du plugin** (`hooks/hooks.json`, découvert automatiquement) : un
+`SessionStart` qui, dans n'importe quel dépôt équipé, compare son tampon
+`# tripwire-template:` à la version du plugin et prescrit `/tripwire:init` s'il
+est en retard. Il n'écrit rien et ne bloque jamais. Il vit dans le plugin et non
+dans le scaffold, pour qu'un dépôt le reçoive par le seul `claude plugin update`
+— sans quoi le mécanisme qui rappelle de propager aurait besoin d'être propagé.
+
 Ne jamais écrire, dans un brief de subagent ou ailleurs, qu'il faut ignorer un
 signal tripwire. Un rouge de Stop ou de pre-push ne se contourne pas par
 `--no-verify` sans raison écrite.

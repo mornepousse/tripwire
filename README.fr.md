@@ -191,7 +191,20 @@ claude plugin install tripwire@tripwire
 ## Mettre à jour un projet équipé
 
 Chaque `check.sh` généré porte un tampon `# tripwire-template: vX.Y.Z`. Après un
-`claude plugin update tripwire@tripwire`, relancez `/tripwire:init` dans le
+**Vous n'avez pas à y penser.** Le plugin embarque son propre hook
+`SessionStart` : au début de chaque session, dans le dépôt que vous ouvrez, il
+compare le tampon de ce dépôt à la version du plugin et — si le scaffold est en
+retard — dit à l'agent de lancer `/tripwire:init` avant autre chose, en citant
+les deux versions. Il n'écrit jamais et ne bloque jamais : l'écriture reste le
+travail d'init, seul à savoir réinjecter vos valeurs projet et arbitrer les
+divergences déclarées.
+
+Ce hook vit dans le **plugin**, pas dans les fichiers scaffoldés, et c'est tout
+l'intérêt : un dépôt équipé le reçoit par le seul `claude plugin update`, sans
+rien à re-scaffolder. Sinon le mécanisme qui rappelle de propager aurait
+lui-même besoin d'être propagé — et la flotte pourrit pendant ce temps.
+
+Après un `claude plugin update tripwire@tripwire`, relancez `/tripwire:init` dans le
 projet : le skill compare le tampon à la version du plugin, annonce ce qui a
 changé et met à jour les fichiers scaffoldés en préservant vos commandes
 fast/build, variantes et chemins surveillés.
