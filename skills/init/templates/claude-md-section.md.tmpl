@@ -11,11 +11,19 @@ Source unique de vérité : `scripts/check.sh`.
 ```
 `pre-push` lance le check complet et bloque le push si rouge. WIP : `git push --no-verify`.
 
-**Hooks Claude Code** (`.claude/settings.json`, automatiques) :
-- `PostToolUse` sur édition d'un fichier surveillé → `check.sh --fast`.
-- `Stop` → `check.sh --fast` (garde-fou ~1 s avant de conclure). Le build complet
-  ({{VARIANT_LIST_DESC}}) n'est PAS relancé à chaque fin de tour : il reste
-  garanti au pre-push git.
+**Hooks Claude Code** (`.claude/settings.json`, automatiques). Échelle de
+gravité : **pendant → informe, à la conclusion → bloque, au push → bloque.**
+- `PostToolUse` sur édition d'un fichier surveillé → `check.sh --fast`, en
+  **avis non bloquant**. Il signale le rouge sans interrompre : la norme TDD
+  impose d'écrire l'assertion rouge AVANT l'implémentation, et bloquer là ferait
+  sonner l'alarme à chaque pas correct. Un avis n'est pas à ignorer pour autant.
+- `Stop` → `check.sh --fast` (~1 s) et il **bloque** : on ne conclut pas un tour
+  sur du rouge. Le build complet ({{VARIANT_LIST_DESC}}) n'est PAS relancé à
+  chaque fin de tour, il reste garanti au pre-push git.
+- `pre-push` → check complet, **bloquant**.
+
+Un rouge de Stop ou de pre-push ne s'ignore jamais et ne se contourne pas par
+`--no-verify` sans raison écrite.
 
 **Divergences déclarées** : `.tripwire-divergences` (committé) liste les écarts
 assumés au scaffold standard — mode maison, dégradation d'environnement, alias

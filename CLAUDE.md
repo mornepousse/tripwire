@@ -20,9 +20,18 @@ Source unique de vérité : `scripts/check.sh` (le plugin mange sa propre nourri
 ```
 `pre-push` lance le check complet et bloque le push si rouge. WIP : `git push --no-verify`.
 
-**Hooks Claude Code** (`.claude/settings.json`, automatiques) :
-- `PostToolUse` sur édition de `skills/`, `tests/` ou `.claude-plugin/` → `check.sh --fast`.
-- `Stop` → `check.sh --fast` (garde-fou léger ~1 s ; le e2e complet reste au pre-push, pas à chaque fin de tour).
+**Hooks Claude Code** (`.claude/settings.json`, automatiques). Échelle de
+gravité : **pendant → informe, à la conclusion → bloque, au push → bloque.**
+- `PostToolUse` sur édition de `skills/`, `tests/` ou `.claude-plugin/` →
+  `check.sh --fast` en **avis non bloquant**. La norme TDD ci-dessous impose un
+  rouge avant l'implémentation : bloquer ici ferait sonner l'alarme à chaque pas
+  correct. Un avis reste à traiter, pas à ignorer.
+- `Stop` → `check.sh --fast` et **bloque** (le e2e complet reste au pre-push).
+- `pre-push` → check complet, **bloquant**.
+
+Ne jamais écrire, dans un brief de subagent ou ailleurs, qu'il faut ignorer un
+signal tripwire. Un rouge de Stop ou de pre-push ne se contourne pas par
+`--no-verify` sans raison écrite.
 
 ### Norme TDD — nouvelle logique pure
 Tout nouveau comportement des templates (mode de check.sh, garde de hook,

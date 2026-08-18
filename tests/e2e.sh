@@ -305,17 +305,23 @@ grep -q 'BOOM' .git/tripwire/last-fail.log; chk "last-fail: sortie capturée" 0 
 OUT="$(./scripts/check.sh --fast 2>&1)"
 echo "$OUT" | grep -q "last-fail.log"; chk "message d'échec pointe le log" 0 $?
 scripts/hooks/pre-push </dev/null >/dev/null 2>&1;     chk "pre-push bloque" 1 $?
-echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
-chk "post-edit rouge -> rc 2" 2 $?
-scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop rouge -> rc 2" 2 $?
+# Échelle de gravité : pendant -> informe, à la conclusion -> bloque, au push -> bloque.
+# Le hook par édition ne bloque plus : la norme TDD impose un rouge avant
+# l'implémentation, un blocage à ce moment-là serait une alarme garantie.
+OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
+chk "post-edit rouge -> rc 0 (avis, pas blocage)" 0 $?
+echo "$OUT" | grep -q "ROUGE"; chk "post-edit rouge: avis émis en contexte" 0 $?
+echo "$OUT" | grep -q "last-fail.log"; chk "post-edit rouge: avis pointe le log" 0 $?
+scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop rouge -> rc 2 (bloque)" 2 $?
 
-# Debounce : sous la fenêtre -> pas de re-check (rc 0 même si rouge dessous)
-echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_DEBOUNCE=999 scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
-chk "debounce: 1er passage seed (rc 2, check réel)" 2 $?
-echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_DEBOUNCE=999 scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
-chk "debounce: 2e passage sous la fenêtre -> rc 0" 0 $?
-echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
-chk "debounce: désactivé (0) -> check réel rc 2" 2 $?
+# Debounce : sous la fenêtre -> pas de re-check. Le discriminant est l'avis
+# émis, plus le code de retour (qui vaut 0 dans les deux cas désormais).
+OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_DEBOUNCE=999 scripts/hooks/cc_post_edit.sh 2>/dev/null)"
+echo "$OUT" | grep -q "ROUGE"; chk "debounce: 1er passage seed (check réel, avis émis)" 0 $?
+OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_DEBOUNCE=999 scripts/hooks/cc_post_edit.sh 2>/dev/null)"
+chk "debounce: 2e passage sous la fenêtre -> silencieux" "" "$OUT"
+OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
+echo "$OUT" | grep -q "ROUGE"; chk "debounce: désactivé (0) -> check réel, avis émis" 0 $?
 
 # Rouge : fast vert mais build cassé -> full rouge, fast vert
 printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh
