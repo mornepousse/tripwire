@@ -4,10 +4,11 @@ Date : 2026-08-05 · Statut : validé (brainstorm session)
 
 ## Problème
 
-Un repo équipé dérive du scaffold standard : mode maison (`--php` sur
-lemia-site, `--release` sur WooView, `--no-link` sur nixos-config), dégradation
-d'environnement (`kicad-cli` sur Rouge-Gorge, `idf.py`/`nix` sur esp-fp),
-dialecte entier (`--board`/`--host-only` sur KaSe_firmware). Ces écarts sont
+Un repo équipé dérive du scaffold standard : dialecte de modes
+(`--board`/`--host-only` sur KaSe_firmware), préambule projet
+(`export IDF_CCACHE_ENABLE=1`, toujours KaSe), dégradation d'environnement
+(`command -v idf.py` / `command -v nix` sur esp-fp), repli de cible
+(`HOST="${HOST:-$(hostname)}"` sur nixos-config). Ces écarts sont
 **délibérés** et **invisibles** : rien ne les enregistre, rien ne les protège.
 
 Le re-scaffold les efface donc en silence. Vécu le 2026-08-05 pendant la
@@ -31,9 +32,9 @@ TSV à trois champs, une ligne par écart assumé :
 
 ```
 # fichier	motif	pourquoi
-scripts/check.sh	--php)	mode maison : lint PHP séparé du build front
-scripts/hooks/cc_stop.sh	kicad-cli	dégradation : pas de DRC si kicad-cli absent
-scripts/check.sh	--board)	dialecte KaSe : --board = --variant standard
+scripts/check.sh	--variant|--board)	dialecte KaSe : --board est l'alias historique de --variant
+scripts/check.sh	command -v idf.py	dégradation : build firmware sauté si la toolchain est absente
+scripts/check.sh	export IDF_CCACHE_ENABLE=1	préambule projet : ccache, sinon les builds repartent de zéro
 ```
 
 Une divergence se réduit à une affirmation vérifiable : *ce motif doit
@@ -42,7 +43,7 @@ sémantique connue de `check.sh` — sinon chaque nouveau cas demande du code.
 Le troisième champ s'adresse à l'humain et n'est **jamais** interprété.
 
 Comparaison en **chaîne littérale** (`grep -qF`), jamais en regex : les motifs
-réels contiennent `--php)`, `$v`, `*"/test/"*`.
+réels contiennent `--board)`, `$v`, `*"/test/"*`, `ALL_VARIANTS[@]`.
 
 Séparateur : tabulation. Un motif contenant une tabulation n'est pas
 représentable — limite acceptée, aucun motif réel n'en contient.
@@ -137,7 +138,7 @@ Dans `tests/e2e.sh`, sur le repo jouet :
 | motif effacé du fichier hôte | **rouge**, message citant motif + pourquoi |
 | fichier hôte supprimé | **rouge** |
 | ligne malformée (un seul champ) | **rouge**, cite le numéro de ligne |
-| motif à caractères regex (`--php)`, `$v`) présent | vert — prouve le `-F` |
+| motif à caractères regex (`ALL_VARIANTS[@]`) présent | vert — prouve le `-F` |
 | hook Stop après effacement d'un motif | rc 2 |
 
 La dernière rejoue l'incident : on écrase un `cc_stop.sh` porteur d'une
@@ -155,16 +156,17 @@ l'exercice de documentation qui a manqué le 2026-08-05.
 
 Divergences connues à ce jour, à confirmer repo par repo :
 
-| repo | écart |
+| repo | écart relevé |
 |---|---|
-| KaSe_firmware | dialecte `--board` / `--host-only` ; env `esp/esp-idf/export.sh` |
-| WooView | mode `--release` |
-| lemia-site | mode `--php` |
-| nixos-config | mode `--no-link` ; cible = `.tripwire-variant` sinon `hostname` |
-| BDM64 | env `../scripts/esp-env.sh` |
-| esp-fp | dégradation `idf.py` / `nix` absents |
-| Rouge-Gorge | dégradation `kicad-cli` ; baseline DRC dédiée CI |
-| cheni, rili | aucun écart connu — fiche absente (inerte) |
+| KaSe_firmware | alias `--fast\|--host-only` et `--variant\|--board` ; préambule `export IDF_CCACHE_ENABLE=1` |
+| esp-fp | gardes `command -v idf.py` et `command -v nix` |
+| nixos-config | repli de cible `HOST="${HOST:-$(hostname)}"` |
+| cheni, BDM64, rili, Rouge-Gorge, WooView, lemia-site | rien trouvé par les sondes |
+
+**« Rien trouvé » ne veut pas dire « rien ».** Les sondes cherchent des alias de
+modes, des gardes `command -v`, des fichiers de variante et des préambules
+projet. Le relevé qui fait foi se fait en lisant chaque `check.sh` contre le
+template — c'est le travail de la reprise, pas un tableau écrit d'avance.
 
 ## Hors périmètre (décisions explicites)
 

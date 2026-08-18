@@ -414,15 +414,17 @@ Prérequis : la release v0.12.0 est faite et chaque repo a reçu le nouveau `che
 
 Divergences repérées le 2026-08-05, **à confirmer repo par repo** (relire le `check.sh` et les hooks de chacun avant de proposer) :
 
-| repo | écart à déclarer |
+| repo | écart relevé |
 |---|---|
-| KaSe_firmware | dialecte `--board` / `--host-only` ; env `esp/esp-idf/export.sh` |
-| WooView | mode `--release` |
-| lemia-site | mode `--php` |
-| nixos-config | mode `--no-link` ; cible = `.tripwire-variant` sinon `hostname` |
-| BDM64 | env `../scripts/esp-env.sh` |
-| esp-fp | dégradation `idf.py` / `nix` absents |
-| Rouge-Gorge | dégradation `kicad-cli` ; baseline DRC dédiée CI |
+| KaSe_firmware | alias `--fast\|--host-only` et `--variant\|--board` ; préambule `export IDF_CCACHE_ENABLE=1` |
+| esp-fp | gardes `command -v idf.py` et `command -v nix` |
+| nixos-config | repli de cible `HOST="${HOST:-$(hostname)}"` |
+| cheni, BDM64, rili, Rouge-Gorge, WooView, lemia-site | rien trouvé par les sondes |
+
+**« Rien trouvé » ne veut pas dire « rien ».** Les sondes cherchent des alias de
+modes, des gardes `command -v`, des fichiers de variante et des préambules
+projet. Le relevé qui fait foi se fait en lisant chaque `check.sh` contre le
+template — c'est le travail de la reprise, pas un tableau écrit d'avance.
 
 - [ ] **Step 1: Pour chaque repo — relire avant de proposer**
 
