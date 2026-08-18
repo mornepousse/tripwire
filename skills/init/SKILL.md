@@ -127,6 +127,22 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
 4. **Setup d'environnement** — commande à sourcer avant un build
    (ex. `source ~/esp/esp-idf/export.sh`), ou « aucun ». Alimente
    `{{ENV_SETUP_BLOCK}}` dans le `pre-push` ; supprimer la ligne si aucun.
+
+   **Règle : un outil absent n'est pas une régression.** Toute commande fast ou
+   full qui dépend d'une toolchain externe (`idf.py`, `kicad-cli`, `nix`,
+   compilateur croisé…) se garde par `command -v` et se **dégrade en saut
+   annoncé** (`info "… SAUTÉ (raison)"` puis `return 0`), jamais en rouge. Un
+   rouge qui veut dire « toolchain absente » est indiscernable d'un rouge qui
+   veut dire « le code est cassé » : au bout de quelques semaines, plus personne
+   ne lit les rouges du projet. Un saut annoncé n'est pas un silence vert — il
+   se voit à chaque run.
+
+   **Ne jamais capturer un environnement dans un fichier de chemins en dur.**
+   Vécu sur BDM64 : `scripts/esp-env.sh` figeait des chemins `/nix/store`, tous
+   garbage-collectés depuis, et le tripwire du projet a été rouge des semaines
+   pour un fichier mort. Préférer une résolution en cascade — env capturé s'il
+   est encore valide, puis `nix develop <flake> --command <outil>`, puis saut
+   annoncé.
 5. **Modules (monorepo, optionnel)** — ne poser la question que si le repo a
    l'air d'un monorepo (plusieurs sous-projets avec leurs propres manifests) :
    liste de couples `glob → commande de test du module` pour router la phase
