@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tripwire-template: v0.11.0
+# tripwire-template: v0.12.0
 # Tripwire anti-régression tripwire — source unique de vérité du "quoi vérifier".
 # Généré par /tripwire:init. Adapter ICI ; les hooks ne font qu'appeler ce script.
 # Modes:
@@ -131,7 +131,8 @@ check_divergences() {
   # `IFS=$'	' read` fusionnerait les tabs consécutives et décalerait les champs.
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
-    line="${line%$''}"                                     # fiche en CRLF
+    line="${line%$'
+'}"                                     # fiche en CRLF
     case "$line" in ''|'#'*) continue ;; esac
     f="${line%%$'	'*}"
     rest="${line#*$'	'}"; [ "$rest" = "$line" ] && rest=""  # aucune tabulation
