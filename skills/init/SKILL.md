@@ -28,6 +28,16 @@ Si `scripts/check.sh` existe déjà dans le repo cible :
   fast/build, variantes, chemins surveillés, env setup) — les relire depuis les
   fichiers existants et les réinjecter dans les nouveaux templates. Mettre à
   jour le tampon.
+- **Contrepartie : préserver n'est pas figer.** Cette règle protège les valeurs
+  projet, mais c'est elle aussi qui les gèle : une commande fast fixée le jour
+  du scaffold n'est jamais rouverte, même quand le projet a changé sous elle.
+  Avant de réinjecter, lire `.git/tripwire/history.tsv` du repo cible et poser
+  le diagnostic de la section 4 du skill `status` (dérive persistante, saut
+  soudain, jamais verte, fast identique à full, jamais exécutée). **Si un
+  constat sort, proposer (AskUserQuestion) de revoir la commande fast** au lieu
+  de la réinjecter telle quelle — en citant les chiffres (médiane, budget,
+  nombre de runs concernés). La préservation reste le défaut ; la révision
+  devient possible.
 - **Divergences déclarées** : lire `.tripwire-divergences` du repo cible AVANT
   toute écriture. Générer depuis les templates, réinjecter chaque motif déclaré
   dans la sortie, puis lancer `./scripts/check.sh --fast` — c'est l'assertion
@@ -75,7 +85,7 @@ mise à jour :
 | v0.10.1 | docs uniquement (carte de cohabitation + doctrine sécurité des greffons tiers) — **rien à re-scaffolder** |
 | v0.10.2 | check.sh : fix fuite `No such file or directory` sur stderr au 1er init du ratchet — la lecture `REF="$(tr … < .tripwire-testcount)"` échoue sur le `<` avant que `2>/dev/null` prenne effet quand le fichier n'existe pas encore ; remplacée par `cat … 2>/dev/null \| tr`. Cosmétique (verdict et fichier inchangés) — re-scaffold : mettre à jour cette seule ligne de check.sh |
 | v0.11.0 | **support Mistral Vibe retiré** (plugin Claude Code uniquement) — un projet scaffoldé côté Vibe n'est plus mis à jour par ce skill. Hook Stop : ne lance plus que `check.sh --fast` (le build/e2e complet reste au pre-push) — re-scaffold : `cc_stop.sh` + la puce `Stop` de la section CLAUDE.md ; check.sh **inchangé** depuis v0.10.2 |
-| v0.12.0 | **check.sh** : assertion de divergences déclarées (`.tripwire-divergences`, TSV committé, rouge si un motif déclaré disparaît de son fichier hôte). **Hooks — échelle de gravité** : `PostToolUse` passe en avis non bloquant (`exit 0` + contexte) au lieu de `exit 2` ; la norme TDD impose un rouge avant l'implémentation, donc bloquer à chaque édition faisait sonner l'alarme à chaque pas correct, et une alarme permanente finit ignorée. `Stop` et `pre-push` restent bloquants. Re-scaffold : `check.sh`, `cc_post_edit.sh`, section CLAUDE.md, + la fiche si le repo a des écarts |
+| v0.12.0 | **skills** : `status` diagnostique l'adéquation de la phase rapide depuis `history.tsv` (dérive persistante, saut soudain, jamais verte, fast == full) et `init` rouvre l'entretien de la commande fast quand un constat sort — préserver n'est pas figer. **check.sh** : assertion de divergences déclarées (`.tripwire-divergences`, TSV committé, rouge si un motif déclaré disparaît de son fichier hôte). **Hooks — échelle de gravité** : `PostToolUse` passe en avis non bloquant (`exit 0` + contexte) au lieu de `exit 2` ; la norme TDD impose un rouge avant l'implémentation, donc bloquer à chaque édition faisait sonner l'alarme à chaque pas correct, et une alarme permanente finit ignorée. `Stop` et `pre-push` restent bloquants. Re-scaffold : `check.sh`, `cc_post_edit.sh`, section CLAUDE.md, + la fiche si le repo a des écarts |
 
 ### Cohabitation avec l'outillage tiers (pre-commit, TDD Guard…)
 
