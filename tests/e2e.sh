@@ -92,7 +92,11 @@ chk "session-start idempotent (silencieux)" "" "$OUT"
 # casse l'œuf et la poule — sinon le correctif de la propagation aurait lui-même
 # besoin d'être propagé.
 PSS="$PLUGIN/hooks/session_start.sh"
-PV="$(sed -n 's/.*"version"[: ]*"\([^"]*\)".*/\1/p' "$PLUGIN/.claude-plugin/plugin.json" | head -1)"
+# Référence = tampon du check.sh du plugin (son dogfood). Il n'avance que quand
+# les templates changent : une release qui n'en touche aucun ne doit pas
+# déclarer toute la flotte en retard. fx-ajour vérifie exactement ce cas, le
+# manifest du plugin étant plus récent que son tampon.
+PV="$(sed -n '2s/^# tripwire-template: *v\{0,1\}\([0-9][0-9.]*\).*/\1/p' "$PLUGIN/scripts/check.sh")"
 mkfx() { mkdir -p "$TMP/$1/scripts"; [ -n "${2:-}" ] && printf '#!/usr/bin/env bash\n# tripwire-template: %s\n' "$2" > "$TMP/$1/scripts/check.sh"; return 0; }
 mkfx fx-none ""
 mkfx fx-ajour "v$PV"
@@ -108,7 +112,7 @@ chk "session-start plugin: scaffold à jour -> silencieux" "" "$OUT"
 OUT="$(run_pss fx-retard)"; chk "session-start plugin: scaffold en retard -> rc 0 (jamais bloquant)" 0 $?
 echo "$OUT" | grep -q "tripwire:init"; chk "session-start plugin: en retard -> prescrit /tripwire:init" 0 $?
 echo "$OUT" | grep -q "v0.1.0"; chk "session-start plugin: en retard -> cite la version du scaffold" 0 $?
-echo "$OUT" | grep -q "$PV"; chk "session-start plugin: en retard -> cite la version du plugin" 0 $?
+echo "$OUT" | grep -q "$PV"; chk "session-start plugin: en retard -> cite la version de référence" 0 $?
 OUT="$(run_pss fx-sanstampon)"
 echo "$OUT" | grep -q "tripwire:init"; chk "session-start plugin: tampon absent -> prescrit /tripwire:init" 0 $?
 

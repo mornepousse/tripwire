@@ -15,11 +15,18 @@ set -uo pipefail
 CHECK="scripts/check.sh"
 [ -f "$CHECK" ] || exit 0          # pas un dépôt équipé — silence total
 
-PLUGIN_JSON="${CLAUDE_PLUGIN_ROOT:-}/.claude-plugin/plugin.json"
-[ -f "$PLUGIN_JSON" ] || exit 0    # racine du plugin inconnue — on se tait plutôt que de deviner
-
-PV="$(sed -n 's/.*"version"[: ]*"\([^"]*\)".*/\1/p' "$PLUGIN_JSON" | head -1)"
-[ -n "$PV" ] || exit 0
+# Référence = le tampon du check.sh DU PLUGIN (son propre dogfood), et non la
+# version du plugin. Le tampon n'avance que quand les templates changent : une
+# release qui n'en touche aucun ne doit pas déclarer toute la flotte en retard,
+# sinon chaque release produit une fausse alerte — et une alerte routinière
+# finit ignorée, ce que ce hook est précisément censé éviter.
+ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+PV="$(sed -n '2s/^# tripwire-template: *v\{0,1\}\([0-9][0-9.]*\).*/\1/p' "$ROOT/scripts/check.sh" 2>/dev/null)"
+if [ -z "$PV" ]; then
+  # Repli : plugin sans dogfood lisible -> version du manifest.
+  PV="$(sed -n 's/.*"version"[: ]*"\([^"]*\)".*/\1/p' "$ROOT/.claude-plugin/plugin.json" 2>/dev/null | head -1)"
+fi
+[ -n "$PV" ] || exit 0             # racine du plugin inconnue — on se tait plutôt que de deviner
 
 # Tampon du scaffold : « # tripwire-template: vX.Y.Z » en ligne 2 (absent avant v0.5.0).
 SV="$(sed -n '2s/^# tripwire-template: *v\{0,1\}\([0-9][0-9.]*\).*/\1/p' "$CHECK")"
