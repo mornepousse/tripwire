@@ -11,15 +11,50 @@ Extracted from the KaSe_firmware project's workflow.
 > Every guard (git hook, platform hook, CI) merely calls it
 > with a mode that fits its time budget.
 
-- `check.sh --fast` — short loop (< 30 s), runs after every watched edit
-- `check.sh --variant <name>` — fast + one variant build (at the platform's Stop/onStop hook)
+- `check.sh --fast` — short loop (< 30 s), runs after every watched edit and at
+  every Stop
+- `check.sh --variant <name>` — fast + one variant build
 - `check.sh` — full: fast + all variants (pre-push, CI)
-- Graceful degradation: build env missing → falls back to `--fast` instead of blocking
+
+## What makes a guardrail stop guarding
+
+A pipeline that is green by default, whose red is routine, and whose warnings
+repeat forever stops being a guardrail. It becomes reassurance. Four rules,
+each learned the hard way, keep tripwire from drifting there.
+
+**A severity ladder, not one alarm.** During work → inform. At the conclusion →
+block. At push → block. The `PostToolUse` hook reports a red without
+interrupting, because the TDD norm requires writing the failing assertion
+*first*: a blocking alarm there would ring on every correct step, and an alarm
+that always rings gets ignored. `Stop` and `pre-push` block — you don't conclude
+a turn, or push, on red.
+
+**An absent tool is not a regression.** Any fast or full command that depends on
+an external toolchain guards itself with `command -v` and degrades to an
+*announced skip*, never to red. A red that means "toolchain missing" is
+indistinguishable from a red that means "the code is broken", and within weeks
+nobody reads the project's reds. An announced skip is not a silent green — it
+shows up on every run. Corollary: never freeze an environment into a file of
+hardcoded paths; they rot, and the pipeline goes red for a dead file.
+
+**Preserving is not freezing.** Re-running init never overwrites your project
+values — but that same rule is what freezes them. A fast command chosen on
+scaffold day is never reopened, even after the project has grown under it. So
+`/tripwire:status` reads `history.tsv` and names the drift (persistent overrun,
+sudden jump, never green, fast identical to full), each with a concrete action;
+and `/tripwire:init` offers to revisit the fast command when the data says it no
+longer holds.
+
+**A deliberate deviation is declared, or it dies silently.** `.tripwire-divergences`
+(committed TSV: `file<TAB>pattern<TAB>why`) lists what a repo deliberately does
+differently from the standard scaffold. `check.sh` turns red when a declared
+pattern vanishes from its host file — so a re-scaffold, a `cp`, or a hurried
+agent cannot quietly erase it. Absent file → inert.
 
 ## Large projects
 
-The "fast < 30 s on every edit, variant check on every Stop" contract holds on
-large repos too, thanks to five mechanisms in the generated `check.sh`:
+The "fast < 30 s on every edit" contract holds on large repos too, thanks to
+five mechanisms in the generated `check.sh`:
 
 - **Skip-if-already-green**: a fingerprint of the repo state (HEAD + diff +
   untracked files) is stored per mode in `.git/tripwire/`; if nothing moved
@@ -137,10 +172,10 @@ claude plugin install tripwire@tripwire
 
 | Skill | Usage |
 |---|---|
-| `/tripwire:init` | Scaffolds check.sh (skip-if-green, monorepo scoping, lock, budget guard, test ratchet), git hooks, Claude Code hooks (PostToolUse/Stop/SessionStart), optional staged CI, CLAUDE.md config section. **Re-run on an equipped project**: detects outdated scaffolds via the `# tripwire-template:` stamp and proposes a targeted update without touching your commands |
+| `/tripwire:init` | Scaffolds check.sh (skip-if-green, monorepo scoping, lock, budget guard, test ratchet, declared-divergence assertion), git hooks, Claude Code hooks (PostToolUse advisory / Stop and pre-push blocking, SessionStart), optional staged CI, CLAUDE.md config section. **Re-run on an equipped project**: detects outdated scaffolds via the `# tripwire-template:` stamp and proposes a targeted update without touching your commands |
 | `/tripwire:gen-agents` | Generates up to 5 project-specialized agents: test-author / code-reviewer / debugger / maintainer / security-auditor (the last two with persistent cross-session memory; judgment agents pinned to `model: sonnet`) |
 | `/tripwire:release` | Release workflow: git tag = version, semver bump proposed from commits, green check mandatory, version-manifest sync, glab/gh release |
-| `/tripwire:status` | One-shot diagnosis: scaffold up to date? hooks active? last green/red? duration drift? watched-path blind spots? `--fleet` mode: a table of all equipped repos |
+| `/tripwire:status` | One-shot diagnosis: scaffold up to date? hooks active? last green/red? **fast-phase fitness** — persistent overrun, sudden jump, never green, fast identical to full — each with a concrete action; watched-path blind spots. `--fleet` mode: a table of all equipped repos |
 | `/tripwire:bisect` | Finds the commit that broke the check: `git bisect run` with check.sh as the oracle |
 | `/tripwire:test-review` | Semantic test audit: hollow assertions, happy-path-only, mock-testing, coupling, parallel-safety, lying names — findings + patches. Large-scope protocol: economical extractors (cited) + one strong judge |
 

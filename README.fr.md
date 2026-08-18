@@ -11,15 +11,52 @@ Extrait du workflow du projet KaSe_firmware.
 > Chaque garde-fou (hook git, hook de plateforme, CI) ne fait que l'appeler
 > avec un mode adapté à son budget temps.
 
-- `check.sh --fast` — boucle courte (< 30 s), lancée après chaque édition surveillée
-- `check.sh --variant <name>` — fast + build d'une variante (au hook Stop/onStop de la plateforme)
+- `check.sh --fast` — boucle courte (< 30 s), lancée après chaque édition
+  surveillée et à chaque Stop
+- `check.sh --variant <name>` — fast + build d'une variante
 - `check.sh` — full : fast + toutes les variantes (pre-push, CI)
-- Dégradation gracieuse : env de build absent → retombe sur `--fast` au lieu de bloquer
+
+## Ce qui fait qu'un garde-fou cesse de garder
+
+Un pipeline vert par défaut, dont le rouge est routinier et dont les
+avertissements se répètent indéfiniment, ne garde plus rien : il rassure.
+Quatre règles, toutes apprises à la dure, l'empêchent de dériver là.
+
+**Une échelle de gravité, pas une alarme unique.** Pendant le travail → informe.
+À la conclusion → bloque. Au push → bloque. Le hook `PostToolUse` signale un
+rouge sans interrompre, parce que la norme TDD exige d'écrire l'assertion qui
+échoue **d'abord** : une alarme bloquante à ce moment-là sonnerait à chaque pas
+correct, et une alarme qui sonne toujours finit ignorée. `Stop` et `pre-push`
+bloquent — on ne conclut pas un tour, et on ne pousse pas, sur du rouge.
+
+**Un outil absent n'est pas une régression.** Toute commande fast ou full
+dépendant d'une toolchain externe se garde par `command -v` et se dégrade en
+**saut annoncé**, jamais en rouge. Un rouge qui veut dire « toolchain absente »
+est indiscernable d'un rouge qui veut dire « le code est cassé » : en quelques
+semaines, plus personne ne lit les rouges du projet. Un saut annoncé n'est pas
+un silence vert — il se voit à chaque run. Corollaire : ne jamais figer un
+environnement dans un fichier de chemins en dur, ils pourrissent, et le pipeline
+devient rouge pour un fichier mort.
+
+**Préserver n'est pas figer.** Relancer init n'écrase jamais vos valeurs projet
+— mais c'est cette règle même qui les gèle. Une commande fast choisie le jour du
+scaffold n'est jamais rouverte, même quand le projet a grossi sous elle.
+`/tripwire:status` lit donc `history.tsv` et nomme la dérive (dépassement
+persistant, saut soudain, jamais verte, fast identique à full), chacune avec une
+action concrète ; et `/tripwire:init` propose de revoir la commande fast quand
+les données montrent qu'elle ne tient plus.
+
+**Un écart délibéré se déclare, ou il meurt en silence.**
+`.tripwire-divergences` (TSV committé : `fichier<TAB>motif<TAB>pourquoi`) liste
+ce qu'un dépôt fait délibérément autrement que le scaffold standard. `check.sh`
+devient rouge quand un motif déclaré disparaît de son fichier hôte — un
+re-scaffold, un `cp` ou un agent pressé ne peuvent plus l'effacer discrètement.
+Fichier absent → inerte.
 
 ## Gros projets
 
-Le contrat « fast < 30 s à chaque édition, check du variant à chaque Stop »
-tient aussi sur les gros repos grâce à quatre mécanismes du `check.sh` généré :
+Le contrat « fast < 30 s à chaque édition » tient aussi sur les gros repos grâce
+à quatre mécanismes du `check.sh` généré :
 
 - **Skip-si-déjà-vert** : empreinte de l'état du repo (HEAD + diff + fichiers
   non trackés) mémorisée par mode dans `.git/tripwire/` ; si rien n'a bougé
@@ -144,10 +181,10 @@ claude plugin install tripwire@tripwire
 
 | Skill | Usage |
 |---|---|
-| `/tripwire:init` | Scaffolde check.sh (skip-si-vert, scoping monorepo, verrou, garde-budget), hooks git, hooks Claude Code (PostToolUse/Stop/SessionStart), CI à étages optionnelle, section CLAUDE.md. **Relancé sur un projet équipé** : détecte les scaffolds en retard via le tampon `# tripwire-template:` et propose une mise à jour ciblée sans écraser vos commandes |
+| `/tripwire:init` | Scaffolde check.sh (skip-si-vert, scoping monorepo, verrou, garde-budget, ratchet de tests, assertion de divergences déclarées), hooks git, hooks Claude Code (PostToolUse en avis / Stop et pre-push bloquants, SessionStart), CI à étages optionnelle, section CLAUDE.md. **Relancé sur un projet équipé** : détecte les scaffolds en retard via le tampon `# tripwire-template:` et propose une mise à jour ciblée sans écraser vos commandes |
 | `/tripwire:gen-agents` | Génère jusqu'à 5 agents spécialisés au projet : test-author / code-reviewer / debugger / maintainer / security-auditor (les deux derniers avec mémoire persistante inter-sessions) |
 | `/tripwire:release` | Workflow de release : tag git = version, bump semver proposé depuis les commits, check vert obligatoire, sync des manifests de version, glab/gh release |
-| `/tripwire:status` | Diagnostic one-shot : scaffold à jour ? hooks actifs ? dernier vert/rouge ? dérive des durées ? angles morts de surveillance ? Mode `--fleet` : tableau de tous les repos équipés |
+| `/tripwire:status` | Diagnostic one-shot : scaffold à jour ? hooks actifs ? dernier vert/rouge ? **adéquation de la phase rapide** — dépassement persistant, saut soudain, jamais verte, fast identique à full — chacun avec une action concrète ; angles morts de surveillance. Mode `--fleet` : tableau de tous les repos équipés |
 | `/tripwire:bisect` | Localise le commit qui a cassé le check : `git bisect run` avec check.sh comme oracle |
 | `/tripwire:test-review` | Audit sémantique des tests : creux, happy-path only, tests de mocks, couplage, parallel-safety, nommage — findings + patchs |
 

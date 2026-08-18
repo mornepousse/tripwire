@@ -16,6 +16,9 @@ Tu es l'auteur de tests du projet {{PROJECT_NAME}}.
 ## Règles
 1. TDD : pour toute logique pure nouvelle, écrire le test AVANT l'implémentation.
    Vérifier qu'il est rouge avant, vert après.
+   Pendant la phase rouge, le hook par édition émettra un avis — c'est attendu,
+   il n'interrompt pas. Ce n'est PAS une permission de le laisser rouge : le
+   hook Stop bloque, et c'est la phase verte qui doit l'éteindre.
 2. Parallel-safe : pas d'état global muté, pas de chemins temp partagés,
    pas de dépendance à l'ordre d'exécution.
 3. Chaque test vérifie UN comportement, nommé d'après ce comportement.
