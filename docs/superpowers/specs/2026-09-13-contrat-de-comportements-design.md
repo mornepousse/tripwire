@@ -78,11 +78,15 @@ Fonction `check_comportements()`, appelée après `check_divergences`, avant
   forme.
 - `SMOKE_DOC` vide alors qu'un `[smoke:]` existe → rouge : garde invérifiable
   déclarée. Une garde qu'on ne peut pas vérifier n'en est pas une.
-- `[NON GARDÉ]` : **ratchet contre HEAD**, sans fichier d'état supplémentaire —
-  même mécanique que la garde anti-affaiblissement. Plus de `[NON GARDÉ]` dans
-  l'arbre qu'à `HEAD` → avis en mode normal, **rouge** si
-  `TRIPWIRE_CONTRAT_STRICT=1`. Assumer un comportement non gardé reste
-  possible ; ça part dans le diff, et le pre-push le voit.
+- `[NON GARDÉ]` : **ratchet à référence committée** — `.tripwire-nongardes`,
+  même mécanique exacte que `.tripwire-testcount` : bootstrap au premier run,
+  baisse automatique quand le compte baisse (fichier laissé modifié, part avec
+  le prochain commit), avis quand il monte, **rouge** au pre-push
+  (`TRIPWIRE_RATCHET_STRICT=1`). Pas au Stop : l'échappatoire à la question
+  forcée est justement une ligne `[NON GARDÉ]`, le Stop ne peut pas la punir.
+  Une référence « contre HEAD » ne marcherait pas — au push l'arbre est propre,
+  donc égal à HEAD, et le ratchet ne mordrait jamais. Assumer un comportement
+  non gardé reste possible ; monter la référence est un diff visible en review.
 - Tag inconnu (`[xyz:…]`) → rouge, ligne citée : une faute de frappe ne doit
   pas se dégrader en prose ignorée.
 
@@ -148,9 +152,11 @@ Sur le repo jouet d'e2e :
 | `[smoke:X]` avec `SMOKE_DOC` vide | **rouge** (garde invérifiable) |
 | tag inconnu | **rouge**, ligne citée |
 | prose sans tag | ignorée, vert |
-| `[NON GARDÉ]` : même compte qu'à HEAD | vert |
-| `[NON GARDÉ]` : +1 vs HEAD, mode normal | vert + avis |
-| `[NON GARDÉ]` : +1 vs HEAD, strict | **rouge** |
+| `[NON GARDÉ]` : premier run | vert, référence bootstrappée |
+| `[NON GARDÉ]` : compte == référence | vert |
+| `[NON GARDÉ]` : compte > référence, mode normal | vert + avis |
+| `[NON GARDÉ]` : compte > référence, ratchet strict | **rouge** |
+| `[NON GARDÉ]` : compte < référence | vert, référence abaissée |
 | post-edit sur une source, vert | question émise en contexte |
 | post-edit sur un fichier de test | pas de question |
 | source modifiée, ni test ni contrat, mode normal | vert + avis |
@@ -166,8 +172,8 @@ Sur le repo jouet d'e2e :
    correctifs — chaque « fix » du mois est un candidat. Pour chacun : test hôte
    existant ? test hôte possible avec `host_clock`/`nvs_fake` ? sinon smoke,
    sinon `[NON GARDÉ]` assumé.
-3. Le nombre de `[NON GARDÉ]` au premier commit est le point de départ du
-   ratchet — il n'a le droit que de baisser.
+3. Le nombre de `[NON GARDÉ]` au premier run bootstrappe `.tripwire-nongardes`
+   (à committer) — il n'a le droit que de baisser.
 
 ## Impacts
 
