@@ -20,7 +20,7 @@ Extrait du workflow du projet KaSe_firmware.
 
 Un pipeline vert par défaut, dont le rouge est routinier et dont les
 avertissements se répètent indéfiniment, ne garde plus rien : il rassure.
-Quatre règles, toutes apprises à la dure, l'empêchent de dériver là.
+Cinq règles, toutes apprises à la dure, l'empêchent de dériver là.
 
 **Une échelle de gravité, pas une alarme unique.** Pendant le travail → informe.
 À la conclusion → bloque. Au push → bloque. Le hook `PostToolUse` signale un
@@ -52,6 +52,21 @@ ce qu'un dépôt fait délibérément autrement que le scaffold standard. `check
 devient rouge quand un motif déclaré disparaît de son fichier hôte — un
 re-scaffold, un `cp` ou un agent pressé ne peuvent plus l'effacer discrètement.
 Fichier absent → inerte.
+
+**Ce que le produit doit faire est écrit — avant de casser.** Un mois sur un
+firmware de clavier : 30 correctifs, la plupart sans test, tous sur de la
+radio, de la veille, du timing — et un pipeline vert pendant tout ce temps.
+Chaque correctif nommait une règle après coup (« un réveil est une activité »),
+des règles qui n'existaient nulle part sauf dans le commit qui les réparait.
+`COMPORTEMENTS.md` (committé, markdown lisible) liste les comportements
+attendus, chacun tagué par ce qui le garde : `[test:X]` (X existe dans un
+fichier de test), `[smoke:X]` (X est un item du smoke test matériel, déroulé par
+un humain à la release), ou `[NON GARDÉ]` — l'aveu, compté et ratcheté.
+`check.sh` devient rouge quand une garde disparaît. Et la question est
+**forcée** : une source modifiée sans test ni ligne au contrat se voit demander
+« quel comportement, quel test ? » pendant le travail, et bloquer au Stop.
+L'échappatoire est une ligne `[NON GARDÉ]` — comptée, donc le ratchet rend la
+dette visible au push.
 
 ## Gros projets
 

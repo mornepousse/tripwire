@@ -19,7 +19,7 @@ Extracted from the KaSe_firmware project's workflow.
 ## What makes a guardrail stop guarding
 
 A pipeline that is green by default, whose red is routine, and whose warnings
-repeat forever stops being a guardrail. It becomes reassurance. Four rules,
+repeat forever stops being a guardrail. It becomes reassurance. Five rules,
 each learned the hard way, keep tripwire from drifting there.
 
 **A severity ladder, not one alarm.** During work → inform. At the conclusion →
@@ -50,6 +50,19 @@ longer holds.
 differently from the standard scaffold. `check.sh` turns red when a declared
 pattern vanishes from its host file — so a re-scaffold, a `cp`, or a hurried
 agent cannot quietly erase it. Absent file → inert.
+
+**What the product must do is written down — before it breaks.** A month on a
+keyboard firmware: 30 fixes, most without a test, all on radio, sleep and
+timing — and a green pipeline throughout. Every fix named a rule after the
+fact ("a wake-up is activity"), rules that existed nowhere but in the commit
+that repaired them. `COMPORTEMENTS.md` (committed, plain markdown) lists the
+expected behaviors, each tagged by what guards it: `[test:X]` (X exists in a
+test file), `[smoke:X]` (X is an item of the hardware smoke test, walked by a
+human at release), or `[NON GARDÉ]` — the admission, counted and ratcheted.
+`check.sh` turns red when a guard vanishes. And the question is **forced**: a
+source edited without a test or a contract line is asked "which behavior, which
+test?" during work, and blocked at Stop. The escape is one `[NON GARDÉ]` line —
+counted, so the ratchet makes the debt visible at push.
 
 ## Large projects
 
