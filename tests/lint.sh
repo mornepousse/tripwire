@@ -35,5 +35,18 @@ raise SystemExit(0 if p == m else 1)
   echo "✗ versions divergentes entre plugin.json et marketplace.json" >&2; rc=1
 fi
 
+# Historique des templates (skills/init/SKILL.md) : trié du plus ancien au plus
+# récent. Une ligne insérée au mauvais endroit a été commise trois fois de suite ;
+# un agent qui lit la table pour savoir quoi re-scaffolder lirait un ordre faux.
+if ! python3 - <<'PYEOF'
+import re, sys
+rows = [l for l in open("skills/init/SKILL.md") if re.match(r"^\| v\d+\.\d+\.\d+ \|", l)]
+keys = [tuple(map(int, re.match(r"^\| v(\d+)\.(\d+)\.(\d+)", l).groups())) for l in rows]
+sys.exit(0 if keys == sorted(keys) else 1)
+PYEOF
+then
+  echo "✗ skills/init/SKILL.md : la table « Historique des templates » n'est pas triée par version" >&2; rc=1
+fi
+
 [ "$rc" -eq 0 ] && echo "✓ lint OK"
 exit "$rc"

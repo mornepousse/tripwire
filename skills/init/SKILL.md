@@ -85,8 +85,9 @@ mise à jour :
 | v0.10.1 | docs uniquement (carte de cohabitation + doctrine sécurité des greffons tiers) — **rien à re-scaffolder** |
 | v0.10.2 | check.sh : fix fuite `No such file or directory` sur stderr au 1er init du ratchet — la lecture `REF="$(tr … < .tripwire-testcount)"` échoue sur le `<` avant que `2>/dev/null` prenne effet quand le fichier n'existe pas encore ; remplacée par `cat … 2>/dev/null \| tr`. Cosmétique (verdict et fichier inchangés) — re-scaffold : mettre à jour cette seule ligne de check.sh |
 | v0.11.0 | **support Mistral Vibe retiré** (plugin Claude Code uniquement) — un projet scaffoldé côté Vibe n'est plus mis à jour par ce skill. Hook Stop : ne lance plus que `check.sh --fast` (le build/e2e complet reste au pre-push) — re-scaffold : `cc_stop.sh` + la puce `Stop` de la section CLAUDE.md ; check.sh **inchangé** depuis v0.10.2 |
-| v0.13.0 | **aucun template modifié** — mais le plugin embarque désormais un hook `SessionStart` qui détecte un scaffold en retard dans n'importe quel dépôt équipé et prescrit `/tripwire:init`. Il arrive par `claude plugin update`, rien à re-scaffolder pour en bénéficier |
 | v0.12.0 | **skills** : `status` diagnostique l'adéquation de la phase rapide depuis `history.tsv` (dérive persistante, saut soudain, jamais verte, fast == full) et `init` rouvre l'entretien de la commande fast quand un constat sort — préserver n'est pas figer. **check.sh** : assertion de divergences déclarées (`.tripwire-divergences`, TSV committé, rouge si un motif déclaré disparaît de son fichier hôte). **Hooks — échelle de gravité** : `PostToolUse` passe en avis non bloquant (`exit 0` + contexte) au lieu de `exit 2` ; la norme TDD impose un rouge avant l'implémentation, donc bloquer à chaque édition faisait sonner l'alarme à chaque pas correct, et une alarme permanente finit ignorée. `Stop` et `pre-push` restent bloquants. Re-scaffold : `check.sh`, `cc_post_edit.sh`, section CLAUDE.md, + la fiche si le repo a des écarts |
+| v0.13.0 | **aucun template modifié** — mais le plugin embarque désormais un hook `SessionStart` qui détecte un scaffold en retard dans n'importe quel dépôt équipé et prescrit `/tripwire:init`. Il arrive par `claude plugin update`, rien à re-scaffolder pour en bénéficier |
+| v0.14.0 | **contrat de comportements** — check.sh : `check_comportements()` (`COMPORTEMENTS.md` : `[test:X]`, `[smoke:X]`, `[NON GARDÉ]` ratcheté dans `.tripwire-nongardes`), valeur `SMOKE_DOC`, la question forcée (source modifiée sans test ni contrat → avis, rouge si `TRIPWIRE_CONTRAT_STRICT=1`) ; hooks : `cc_post_edit.sh` pose la question sur toute source (même sur vert — l'avis TDD, lui, n'arrivait jamais jusqu'à l'agent), `cc_stop.sh` et `pre-push` exportent le strict. CRLF : `$'\r'` en séquence d'échappement, plus d'octet nu. Re-scaffold : `check.sh`, les trois hooks, section CLAUDE.md, + poser la question 10 |
 
 ### Cohabitation avec l'outillage tiers (pre-commit, TDD Guard…)
 
@@ -191,6 +192,13 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
    (`{{SRC_GREP}}`, ex. `^src/|^main/`). Vérifier que les chemins de test
    sont AUSSI dans `{{WATCHED_PATH_PATTERNS}}` (sinon la garde
    anti-affaiblissement ne voit jamais les fichiers de test).
+10. **Smoke test matériel (optionnel)** — chemin d'un document listant les
+    vérifications manuelles sur le produit réel (`{{SMOKE_DOC}}`, ex.
+    `docs/HARDWARE_SMOKE_TEST.md`), ou vide. C'est là que les gardes
+    `[smoke:X]` de `COMPORTEMENTS.md` doivent apparaître. Un projet dont le
+    comportement dépend du matériel, de la radio ou du timing en a besoin :
+    ses tests hôte ne prouvent pas que le firmware se comporte, et un
+    `[smoke:]` sans document est rouge (garde invérifiable).
 
 ## Étape 3 — Génération
 
@@ -226,6 +234,23 @@ des écarts. Créée à la main, une ligne par écart assumé, **committée** (c
   gitignoré ne change pas l'empreinte du skip-si-déjà-vert, sa perte peut donc
   passer sous un « déjà vert — skip ».
 
+### Contrat de comportements
+
+`COMPORTEMENTS.md` n'a pas de template non plus : il s'écrit **avec
+l'utilisateur**, jamais inventé. Chaque comportement attendu est une puce
+taguée par ce qui le garde — `[test:X]` (X apparaît dans un fichier de test),
+`[smoke:X]` (X apparaît dans `SMOKE_DOC`), ou l'aveu `[NON GARDÉ]`, compté dans
+`.tripwire-nongardes` (committé, ratchet strict au pre-push). Une garde qui
+disparaît rend le check rouge. Une source modifiée sans test ni contrat touché
+laisse une question sans réponse : avis pendant, **rouge au Stop**.
+
+Matière pour un premier contrat : les règles déjà écrites dans le CLAUDE.md du
+projet (« doit », « jamais », « toujours »), et les commits `fix` récents —
+chacun nomme une règle découverte après coup. Pour chaque candidat : test hôte
+existant ? possible avec une horloge ou un stockage factices ? sinon smoke,
+sinon `[NON GARDÉ]` assumé. Le compte initial de `[NON GARDÉ]` n'a le droit
+que de baisser.
+
 ### Placeholders
 
 | Placeholder | Valeur |
@@ -250,6 +275,7 @@ des écarts. Créée à la main, une ligne par écart assumé, **committée** (c
 | `{{TEST_PATH_PATTERNS}}` | patterns `case` des fichiers de test (question 9) ; `*"/__jamais__/"*` si aucun |
 | `{{TEST_GREP}}` | forme grep -E des chemins de test ; **vide** si aucun |
 | `{{SRC_GREP}}` | forme grep -E des chemins source surveillés ; **vide** si aucun |
+| `{{SMOKE_DOC}}` | chemin du document de smoke test matériel (question 10) ; **vide** si aucun |
 
 ### Adaptations mono-cible
 - `ALL_VARIANTS=()` vide ; le mode `--variant` reste dans check.sh (inerte, ne pas le retirer).

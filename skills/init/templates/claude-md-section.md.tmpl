@@ -35,6 +35,15 @@ n'est pas protégé de façon fiable. **Limite** : un écart non déclaré n'est
 protégé par rien et le prochain re-scaffold l'effacera — toute divergence
 délibérée se déclare au moment où on l'introduit.
 
+**Contrat de comportements** : `COMPORTEMENTS.md` (committé) liste ce que le
+produit doit faire, chaque comportement tagué par ce qui le garde — `[test:X]`,
+`[smoke:X]` (vérifié à la main, dans le smoke test matériel), ou `[NON GARDÉ]`
+(compté, ratchet strict au push). **Le lire avant de toucher une source.** Une
+source modifiée sans test ni contrat touché est une question sans réponse : le
+hook par édition la pose, le Stop bloque. Y répondre = un test, ou une ligne
+au contrat. Un `[NON GARDÉ]` est une réponse honnête, pas une échappatoire
+gratuite : il est compté.
+
 ### Norme TDD — nouvelle logique pure
 Toute nouvelle fonction de logique pure ({{TDD_SCOPE}}) : test écrit **d'abord**,
 ajouté à la suite de tests de la phase rapide. Le test doit être rouge avant

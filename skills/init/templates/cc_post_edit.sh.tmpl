@@ -30,6 +30,7 @@ if [ "$rc" -ne 0 ]; then
   exit 0
 fi
 # Garde anti-affaiblissement : perte nette d'assertions vs HEAD dans un test ?
+# Sinon : une source modifiée reçoit la question du contrat de comportements.
 case "$FP" in
   {{TEST_PATH_PATTERNS}})
     REL="${FP#"$REPO"/}"
@@ -38,6 +39,14 @@ case "$FP" in
     if git cat-file -e "HEAD:$REL" 2>/dev/null && [ "$NOLD" -gt "$NNEW" ] 2>/dev/null; then
       python3 -c 'import json,sys; print(json.dumps({"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":sys.argv[1]}}, ensure_ascii=False))' \
         "tripwire: $((NOLD-NNEW)) assertion(s) en moins dans $REL vs HEAD — refactor légitime ou affaiblissement ? Rétablir ou justifier."
+    fi
+    ;;
+  *)
+    # La question forcée. Elle remplace l'avis TDD de check.sh, qui n'arrivait
+    # jamais jusqu'ici : le hook ne relaie la sortie du check que sur rouge.
+    if [ -f "$REPO/COMPORTEMENTS.md" ]; then
+      python3 -c 'import json,sys; print(json.dumps({"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":sys.argv[1]}}, ensure_ascii=False))' \
+        "tripwire: source modifiée — quel comportement de COMPORTEMENTS.md ce changement touche-t-il, et quel test le garde ? Si aucun : l'ajouter au contrat (gardé, ou [NON GARDÉ] assumé) avant de conclure. Le Stop bloquera sinon."
     fi
     ;;
 esac
