@@ -7,6 +7,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 export TRIPWIRE_DEBOUNCE=0   # les tests enchaînent les hooks plus vite que le debounce réel
 export TRIPWIRE_RATCHET_STRICT=0   # un pre-push parent ne doit pas rendre les toys stricts
+export TRIPWIRE_CONTRAT_STRICT=0   # idem pour la question du contrat (le pre-push exporte les deux)
 cd "$TMP"
 git init -q -b main
 
