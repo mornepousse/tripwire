@@ -12,6 +12,11 @@
 # arbitrer les divergences.
 set -uo pipefail
 
+# Débrayage : TRIPWIRE_OFF=1 (par session) ou un fichier .tripwire-off à la racine
+# (par dépôt, à ne pas committer) coupe ce hook net, sans rien désinstaller.
+[ "${TRIPWIRE_OFF:-0}" = "1" ] && exit 0
+[ -e .tripwire-off ] && exit 0
+
 CHECK="scripts/check.sh"
 [ -f "$CHECK" ] || exit 0          # pas un dépôt équipé — silence total
 

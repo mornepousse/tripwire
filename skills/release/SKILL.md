@@ -69,10 +69,9 @@ version au niveau de la section, checklist sous-section `### Smoke test`).
      sous-section pour ne plus reposer la question.
    - Sous-section contenant `Aucune (décision explicite)` → passer silencieusement.
    - **Contrat de comportements** : si `COMPORTEMENTS.md` existe et contient des
-     gardes `[smoke:X]`, chaque `X` est un item du smoke test — le dérouler avec
-     l'utilisateur comme les autres, et **refuser « Aucune »** : un projet qui
-     déclare des comportements vérifiés au matériel ne peut pas releaser sans
-     les vérifier. C'est le moment où « vert ≠ fonctionne » se ferme.
+     notes `[smoke:X]`, chaque `X` est un item de smoke test à dérouler avec
+     l'utilisateur comme les autres. Le check ne les vérifie jamais : c'est ici,
+     et seulement ici, qu'elles comptent.
      ```bash
      grep -oE '\[smoke:[^]]+\]' COMPORTEMENTS.md 2>/dev/null | sort -u   # les items obligatoires
      ```

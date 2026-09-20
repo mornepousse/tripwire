@@ -88,6 +88,7 @@ mise à jour :
 | v0.12.0 | **skills** : `status` diagnostique l'adéquation de la phase rapide depuis `history.tsv` (dérive persistante, saut soudain, jamais verte, fast == full) et `init` rouvre l'entretien de la commande fast quand un constat sort — préserver n'est pas figer. **check.sh** : assertion de divergences déclarées (`.tripwire-divergences`, TSV committé, rouge si un motif déclaré disparaît de son fichier hôte). **Hooks — échelle de gravité** : `PostToolUse` passe en avis non bloquant (`exit 0` + contexte) au lieu de `exit 2` ; la norme TDD impose un rouge avant l'implémentation, donc bloquer à chaque édition faisait sonner l'alarme à chaque pas correct, et une alarme permanente finit ignorée. `Stop` et `pre-push` restent bloquants. Re-scaffold : `check.sh`, `cc_post_edit.sh`, section CLAUDE.md, + la fiche si le repo a des écarts |
 | v0.13.0 | **aucun template modifié** — mais le plugin embarque désormais un hook `SessionStart` qui détecte un scaffold en retard dans n'importe quel dépôt équipé et prescrit `/tripwire:init`. Il arrive par `claude plugin update`, rien à re-scaffolder pour en bénéficier |
 | v0.14.0 | **contrat de comportements** — check.sh : `check_comportements()` (`COMPORTEMENTS.md` : `[test:X]`, `[smoke:X]`, `[NON GARDÉ]` ratcheté dans `.tripwire-nongardes`), valeur `SMOKE_DOC`, la question forcée (source modifiée sans test ni contrat → avis, rouge si `TRIPWIRE_CONTRAT_STRICT=1`) ; hooks : `cc_post_edit.sh` pose la question sur toute source (même sur vert — l'avis TDD, lui, n'arrivait jamais jusqu'à l'agent), `cc_stop.sh` et `pre-push` exportent le strict. CRLF : `$'\r'` en séquence d'échappement, plus d'octet nu. Re-scaffold : `check.sh`, les trois hooks, section CLAUDE.md, + poser la question 10 |
+| v0.15.0 | **débrayage** : `TRIPWIRE_OFF=1` ou `.tripwire-off` coupe les hooks Claude Code (post-edit, Stop, SessionStart) et le hook du plugin. **Contrat allégé** : la question n'est plus qu'un avis d'une ligne au post-edit (le Stop ne bloque plus, `TRIPWIRE_CONTRAT_STRICT` disparaît), `[smoke:X]` n'est plus vérifié (note de release), `SMOKE_DOC` et la question 10 disparaissent. Re-scaffold : `check.sh`, les trois hooks, section CLAUDE.md, `.gitignore` |
 
 ### Cohabitation avec l'outillage tiers (pre-commit, TDD Guard…)
 
@@ -192,13 +193,6 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
    (`{{SRC_GREP}}`, ex. `^src/|^main/`). Vérifier que les chemins de test
    sont AUSSI dans `{{WATCHED_PATH_PATTERNS}}` (sinon la garde
    anti-affaiblissement ne voit jamais les fichiers de test).
-10. **Smoke test matériel (optionnel)** — chemin d'un document listant les
-    vérifications manuelles sur le produit réel (`{{SMOKE_DOC}}`, ex.
-    `docs/HARDWARE_SMOKE_TEST.md`), ou vide. C'est là que les gardes
-    `[smoke:X]` de `COMPORTEMENTS.md` doivent apparaître. Un projet dont le
-    comportement dépend du matériel, de la radio ou du timing en a besoin :
-    ses tests hôte ne prouvent pas que le firmware se comporte, et un
-    `[smoke:]` sans document est rouge (garde invérifiable).
 
 ## Étape 3 — Génération
 
@@ -238,67 +232,25 @@ des écarts. Créée à la main, une ligne par écart assumé, **committée** (c
 
 `COMPORTEMENTS.md` n'a pas de template non plus : il s'écrit **avec
 l'utilisateur**, jamais inventé. Chaque comportement attendu est une puce
-taguée par ce qui le garde — `[test:X]` (X apparaît dans un fichier de test),
-`[smoke:X]` (X apparaît dans `SMOKE_DOC`), ou l'aveu `[NON GARDÉ]`, compté dans
-`.tripwire-nongardes` (committé, ratchet strict au pre-push). Une garde qui
-disparaît rend le check rouge. Une source modifiée sans test ni contrat touché
-laisse une question sans réponse : avis pendant, **rouge au Stop**.
+taguée : `[test:X]` (X apparaît dans un fichier de test — c'est la seule garde
+que `check.sh` vérifie : rouge si X disparaît), `[smoke:X]` (note pour le smoke
+test manuel de la release, jamais vérifiée par le check), ou `[NON GARDÉ]`
+(compté dans `.tripwire-nongardes`, ratchet strict au pre-push).
 
-Matière pour un premier contrat : les règles déjà écrites dans le CLAUDE.md du
-projet (« doit », « jamais », « toujours »), et les commits `fix` récents —
-chacun nomme une règle découverte après coup. Pour chaque candidat : test hôte
-existant ? possible avec une horloge ou un stockage factices ? sinon smoke,
-sinon `[NON GARDÉ]` assumé. Le compte initial de `[NON GARDÉ]` n'a le droit
-que de baisser.
+Une source modifiée sans test ni ligne au contrat déclenche un **avis** d'une
+ligne au post-edit — jamais un blocage. Une semaine de blocage au Stop sur un
+vrai projet a produit 66 commits taxés d'une ligne et un tag `[smoke:]`
+grossier devenu l'échappatoire universelle : la question est utile, la
+contrainte ne l'était pas.
 
-### Placeholders
+### Débrayage
 
-| Placeholder | Valeur |
-|---|---|
-| `{{PROJECT_NAME}}` | nom du repo cible |
-| `{{TRIPWIRE_VERSION}}` | version du plugin au moment du scaffold (`vX.Y.Z`, depuis le `version` de `.claude-plugin/plugin.json` du plugin) — sert à l'Étape 0 pour détecter les scaffolds en retard |
-| `{{FAST_CMD}}` | commande fast (une ligne) |
-| `{{FAST_DESC}}` | description humaine de la phase fast |
-| `{{VARIANTS_SPACE_SEPARATED}}` | `v1 v2 …` ; **vide** si mono-cible |
-| `{{VARIANT_BUILD_CMD}}` | commande de build, peut utiliser `$v` |
-| `{{VARIANT_LIST_DESC}}` | ex. « les 3 variantes » / « le build complet » |
-| `{{DEFAULT_VARIANT}}` | variante par défaut (multi uniquement) : contenu écrit dans `.tripwire-variant` ; n'apparaît littéralement dans aucun template |
-| `{{ENV_SETUP_BLOCK}}` | bloc shell de setup d'env (pre-push) ; **supprimer la ligne** si aucun |
-| `{{WATCHED_PATH_PATTERNS}}` | patterns `case` séparés par `\|` |
-| `{{TDD_SCOPE}}` | types de logique pure du projet |
-| `{{SESSION_VARIANT_LINE}}` | multi : `V="$(cat .tripwire-variant 2>/dev/null \|\| true)"; [ -n "$V" ] && CTX="$CTX tripwire: variante courante: $V."` ; **supprimer la ligne** si mono |
-| `{{MODULE_FAST_ENTRIES}}` | monorepo : entrées `"<glob>:<commande>"` séparées par des espaces ; **vide** sinon |
-| `{{CI_IMAGE}}` | image docker CI GitLab (défaut `debian:stable-slim`, à adapter à la toolchain) |
-| `{{DEFAULT_BRANCH}}` | branche par défaut du repo cible (`git symbolic-ref refs/remotes/origin/HEAD`, repli `main`) |
-| `{{TEST_COUNT_CMD}}` | commande de comptage des tests (question 8) ; **vide** si aucun |
-| `{{ASSERT_PATTERN}}` | regex grep -E des assertions de la stack (question 8) ; `assert` par défaut si ratchet actif sans mieux |
-| `{{TEST_PATH_PATTERNS}}` | patterns `case` des fichiers de test (question 9) ; `*"/__jamais__/"*` si aucun |
-| `{{TEST_GREP}}` | forme grep -E des chemins de test ; **vide** si aucun |
-| `{{SRC_GREP}}` | forme grep -E des chemins source surveillés ; **vide** si aucun |
-| `{{SMOKE_DOC}}` | chemin du document de smoke test matériel (question 10) ; **vide** si aucun |
-
-### Adaptations mono-cible
-- `ALL_VARIANTS=()` vide ; le mode `--variant` reste dans check.sh (inerte, ne pas le retirer).
-- Dans la section CLAUDE.md : supprimer la ligne `--variant` (multi uniquement). La puce `Stop` (`--fast`) et `{{VARIANT_LIST_DESC}}` restent telles quelles.
-- Pas de fichier `.tripwire-variant` ; supprimer la ligne `{{SESSION_VARIANT_LINE}}` de `cc_session_start.sh`.
-
-### Multi-variantes
-- Créer `.tripwire-variant` contenant la variante par défaut.
-- Ajouter `.tripwire-variant` au `.gitignore` ? NON — le committer (comme
-  `.kase-board` chez KaSe) pour qu'un clone frais ait un défaut sain.
-
-### Merge de `.claude/settings.json`
-- Fichier absent → écrire le template tel quel.
-- Fichier présent → lire le JSON existant, ajouter les entrées PostToolUse
-  du template aux tableaux existants (créer les clés si absentes).
-  Ne JAMAIS supprimer ou modifier les hooks existants. Vérifier le résultat
-  avec `jq .` avant d'écrire.
-- Idempotence du merge : si une entrée `command` pointant sur `scripts/hooks/cc_*` existe déjà, ne pas la dupliquer.
-
-### Section CLAUDE.md
-- `CLAUDE.md` absent → le créer avec un titre `# <projet> — Claude Code instructions` puis la section.
-- Présent → ajouter la section à la fin (ou remplacer une section
-  « Workflow anti-régression » existante si mise à jour).
+`TRIPWIRE_OFF=1` dans l'environnement (par session : `TRIPWIRE_OFF=1 claude`)
+ou un fichier `.tripwire-off` à la racine (par dépôt, ignoré par git) coupe les
+trois hooks Claude Code et le hook SessionStart du plugin — silence total, rien
+désinstallé. Le pre-push git n'est pas concerné : il ne coûte aucun token et a
+son échappatoire (`--no-verify`). Ajouter `.tripwire-off` au `.gitignore` du
+projet au scaffold.
 
 ## Étape 4 — Validation (OBLIGATOIRE avant de conclure)
 

@@ -20,7 +20,7 @@ Extrait du workflow du projet KaSe_firmware.
 
 Un pipeline vert par défaut, dont le rouge est routinier et dont les
 avertissements se répètent indéfiniment, ne garde plus rien : il rassure.
-Cinq règles, toutes apprises à la dure, l'empêchent de dériver là.
+Six règles, toutes apprises à la dure, l'empêchent de dériver là.
 
 **Une échelle de gravité, pas une alarme unique.** Pendant le travail → informe.
 À la conclusion → bloque. Au push → bloque. Le hook `PostToolUse` signale un
@@ -56,17 +56,23 @@ Fichier absent → inerte.
 **Ce que le produit doit faire est écrit — avant de casser.** Un mois sur un
 firmware de clavier : 30 correctifs, la plupart sans test, tous sur de la
 radio, de la veille, du timing — et un pipeline vert pendant tout ce temps.
-Chaque correctif nommait une règle après coup (« un réveil est une activité »),
-des règles qui n'existaient nulle part sauf dans le commit qui les réparait.
-`COMPORTEMENTS.md` (committé, markdown lisible) liste les comportements
-attendus, chacun tagué par ce qui le garde : `[test:X]` (X existe dans un
-fichier de test), `[smoke:X]` (X est un item du smoke test matériel, déroulé par
-un humain à la release), ou `[NON GARDÉ]` — l'aveu, compté et ratcheté.
-`check.sh` devient rouge quand une garde disparaît. Et la question est
-**forcée** : une source modifiée sans test ni ligne au contrat se voit demander
-« quel comportement, quel test ? » pendant le travail, et bloquer au Stop.
-L'échappatoire est une ligne `[NON GARDÉ]` — comptée, donc le ratchet rend la
-dette visible au push.
+Chaque correctif nommait une règle après coup, des règles qui n'existaient
+nulle part sauf dans le commit qui les réparait. `COMPORTEMENTS.md` (committé,
+markdown lisible) liste les comportements attendus, chacun tagué par ce qui le
+garde : `[test:X]` (X existe dans un fichier de test — la seule garde que
+`check.sh` vérifie : rouge si X disparaît), `[smoke:X]` (note pour le smoke test
+manuel de la release), ou `[NON GARDÉ]` — l'aveu, compté et ratcheté. Une
+source modifiée sans test ni ligne au contrat reçoit un avis d'une ligne. Pas un
+blocage : une semaine de blocage au Stop sur un vrai projet a taxé 66 commits
+d'une ligne au contrat et fait d'un tag `[smoke:]` grossier l'échappatoire
+universelle. La question est utile ; la contrainte ne l'était pas.
+
+**On peut le débrayer.** `TRIPWIRE_OFF=1` dans l'environnement (par session) ou
+un fichier `.tripwire-off` à la racine (par dépôt, ignoré par git) coupe tous
+les hooks Claude Code et celui du plugin — rien n'est désinstallé. Les hooks
+coûtent des tokens à chaque édition et à chaque tour ; un garde-fou qu'on ne
+peut pas couper finit contourné. Le `pre-push` git reste ; `--no-verify` est
+son échappatoire.
 
 ## Gros projets
 

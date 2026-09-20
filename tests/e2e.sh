@@ -7,7 +7,6 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 export TRIPWIRE_DEBOUNCE=0   # les tests enchaînent les hooks plus vite que le debounce réel
 export TRIPWIRE_RATCHET_STRICT=0   # un pre-push parent ne doit pas rendre les toys stricts
-export TRIPWIRE_CONTRAT_STRICT=0   # idem pour la question du contrat (le pre-push exporte les deux)
 cd "$TMP"
 git init -q -b main
 
@@ -25,7 +24,6 @@ sed -e 's|{{PROJECT_NAME}}|toy|g' \
     -e 's|{{SRC_GREP}}|^src/|g' \
     -e 's|{{TEST_GREP}}|^test/|g' \
     -e 's|{{TEST_COUNT_CMD}}|cat ntests.txt|g' \
-    -e 's|{{SMOKE_DOC}}|docs/smoke.md|g' \
     "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check.sh
 sed -e 's|{{PROJECT_NAME}}|toy|g' -e '/{{ENV_SETUP_BLOCK}}/d' \
     "$PLUGIN/skills/init/templates/pre-push.tmpl" > scripts/hooks/pre-push
@@ -87,6 +85,31 @@ echo "$OUT" | grep -q "hooks git installés"; chk "session-start: contexte émis
 OUT="$(echo '{}' | scripts/hooks/cc_session_start.sh 2>/dev/null)"; rc=$?
 chk "session-start idempotent (rc)" 0 $rc
 chk "session-start idempotent (silencieux)" "" "$OUT"
+
+# ===== Débrayage : TRIPWIRE_OFF=1 ou un fichier .tripwire-off coupe les hooks =====
+# Les hooks Claude Code coûtent des tokens à chaque édition et à chaque fin de
+# tour. On doit pouvoir les couper d'un geste, par session (env) ou par dépôt
+# (fichier, non suivi), sans rien désinstaller. Le pre-push git n'est pas
+# concerné : il ne coûte rien à l'agent et a déjà son échappatoire (--no-verify).
+printf '#!/usr/bin/env bash\necho BOOM\nexit 1\n' > fast.sh              # rouge en dessous
+OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_OFF=1 scripts/hooks/cc_post_edit.sh 2>&1)"
+chk "débrayage env: post-edit rc 0" 0 $?
+chk "débrayage env: post-edit silencieux" "" "$OUT"
+OUT="$(TRIPWIRE_OFF=1 scripts/hooks/cc_stop.sh </dev/null 2>&1)"
+chk "débrayage env: stop rc 0 même sur rouge" 0 $?
+chk "débrayage env: stop silencieux" "" "$OUT"
+OUT="$(echo '{}' | TRIPWIRE_OFF=1 scripts/hooks/cc_session_start.sh 2>&1)"
+chk "débrayage env: session-start silencieux" "" "$OUT"
+touch .tripwire-off
+scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1; chk "débrayage fichier: stop rc 0 même sur rouge" 0 $?
+OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh 2>&1)"
+chk "débrayage fichier: post-edit silencieux" "" "$OUT"
+OUT="$(cd "$TMP" && CLAUDE_PLUGIN_ROOT="$PLUGIN" bash "$PLUGIN/hooks/session_start.sh" </dev/null 2>&1)"
+chk "débrayage fichier: hook plugin silencieux" "" "$OUT"
+rm -f .tripwire-off
+scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1; chk "embrayé: stop bloque à nouveau (rc 2)" 2 $?
+printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh
+./scripts/check.sh --fast --force >/dev/null 2>&1
 
 # ===== Dogfood : les fonctions dupliquées restent identiques au template =====
 # La duplication est voulue (un check.sh scaffoldé est autonome). Elle a dérivé un
@@ -181,7 +204,6 @@ sed -e 's|{{PROJECT_NAME}}|toy|g' \
     -e 's|{{SRC_GREP}}||g' \
     -e 's|{{TEST_GREP}}||g' \
     -e 's|{{TEST_COUNT_CMD}}||g' \
-    -e 's|{{SMOKE_DOC}}||g' \
     "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check_mod.sh
 chmod +x scripts/check_mod.sh
 rm -f modA.ran
@@ -335,7 +357,6 @@ git checkout -q -- test/t.c
 # [test:X] (X doit exister sous les chemins de test), [smoke:X] (X doit exister
 # dans SMOKE_DOC), ou l'aveu [NON GARDÉ], compté et ratcheté. Une garde qui
 # disparaît = rouge ; un comportement inventé n'est pas le problème du pipeline.
-mkdir -p docs; printf '# Smoke\n- veille-batterie : tient la nuit\n' > docs/smoke.md
 rm -f COMPORTEMENTS.md .tripwire-nongardes
 ./scripts/check.sh --fast --force >/dev/null 2>&1; chk "comportements: contrat absent -> inerte" 0 $?
 printf '# Contrat\n\nProse libre.\n- [test:assert(a)] le comportement A est gardé par t.c\n' > COMPORTEMENTS.md
@@ -344,12 +365,11 @@ printf -- '- [test:je_nexiste_pas] comportement orphelin\n' > COMPORTEMENTS.md
 OUT="$(./scripts/check.sh --fast --force 2>&1)"; chk "comportements: [test:X] absent -> rouge" 1 $?
 echo "$OUT" | grep -q "je_nexiste_pas"; chk "comportements: message cite la garde perdue" 0 $?
 echo "$OUT" | grep -q "NON GARDÉ"; chk "comportements: message propose l'aveu" 0 $?
-printf -- '- [smoke:veille-batterie] tient la nuit\n' > COMPORTEMENTS.md
-./scripts/check.sh --fast --force >/dev/null 2>&1; chk "comportements: [smoke:X] présent -> vert" 0 $?
-printf -- '- [smoke:absent-du-doc] rien\n' > COMPORTEMENTS.md
-./scripts/check.sh --fast --force >/dev/null 2>&1; chk "comportements: [smoke:X] absent -> rouge" 1 $?
-printf -- '- [smoke:x] y\n' > COMPORTEMENTS.md
-./scripts/check_mod.sh --fast --force >/dev/null 2>&1; chk "comportements: [smoke:] sans SMOKE_DOC -> rouge (invérifiable)" 1 $?
+# [smoke:X] est une note de vérification manuelle, pas une garde : le check ne la
+# vérifie pas. Vérifiée contre un doc, elle est devenue l'échappatoire universelle
+# (32 lignes en une semaine, tag grossier réutilisé) — pour zéro protection.
+printf -- '- [smoke:n importe quoi] note manuelle\n' > COMPORTEMENTS.md
+./scripts/check.sh --fast --force >/dev/null 2>&1; chk "comportements: [smoke:X] -> note, jamais vérifiée, vert" 0 $?
 printf -- '- [bidule:x] tag inconnu\n' > COMPORTEMENTS.md
 OUT="$(./scripts/check.sh --fast --force 2>&1)"; chk "comportements: tag inconnu -> rouge" 1 $?
 echo "$OUT" | grep -q "bidule"; chk "comportements: tag inconnu cité" 0 $?
@@ -372,18 +392,18 @@ chk "nongardes: référence abaissée" "1" "$(cat .tripwire-nongardes 2>/dev/nul
 git add -A >/dev/null 2>&1 && GITC commit -qm "c7 contrat"
 OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
 echo "$OUT" | grep -q "COMPORTEMENTS"; chk "question: post-edit source -> question émise (même sur vert)" 0 $?
+[ "${#OUT}" -lt 260 ]; chk "question: post-edit -> une ligne courte (< 260 octets, tokens)" 0 $?
 OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/test/t.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
 echo "$OUT" | grep -q "COMPORTEMENTS"; chk "question: post-edit test -> pas de question" 1 $?
 echo mod >> src/f2                                    # source modifiée, ni test ni contrat
-OUT="$(./scripts/check.sh --fast --force 2>&1)"; chk "question: sans réponse, normal -> vert" 0 $?
+OUT="$(./scripts/check.sh --fast --force 2>&1)"; chk "question: sans réponse -> vert (avis, jamais rouge)" 0 $?
 echo "$OUT" | grep -q "COMPORTEMENTS"; chk "question: sans réponse -> avis émis" 0 $?
-TRIPWIRE_CONTRAT_STRICT=1 ./scripts/check.sh --fast --force >/dev/null 2>&1; chk "question: sans réponse, strict -> rouge" 1 $?
-scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1; chk "question: le Stop bloque -> rc 2" 2 $?
-printf -- '- [NON GARDÉ] b\n' >> COMPORTEMENTS.md   # l'échappatoire : une ligne, comptée
-TRIPWIRE_CONTRAT_STRICT=1 ./scripts/check.sh --fast --force >/dev/null 2>&1; chk "question: contrat touché -> vert" 0 $?
+# Le Stop NE bloque PLUS sur la question : en une semaine sur un vrai projet,
+# 17 blocages et 66 commits taxés d'une ligne au contrat. La question reste un
+# avis ; le rouge du contrat est réservé à une garde [test:X] qui disparaît.
+scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1; chk "question: le Stop ne bloque pas -> rc 0" 0 $?
 git checkout -q -- src/f2 COMPORTEMENTS.md
 git rm -q COMPORTEMENTS.md .tripwire-nongardes && GITC commit -qm "c8 sans contrat"   # sections suivantes inchangées
-rm -rf docs
 
 # ===== Avis TDD : source modifié sans test modifié =====
 echo mod >> src/f2                                    # source tracké modifié

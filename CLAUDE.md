@@ -29,6 +29,11 @@ gravité : **pendant → informe, à la conclusion → bloque, au push → bloqu
 - `Stop` → `check.sh --fast` et **bloque** (le e2e complet reste au pre-push).
 - `pre-push` → check complet, **bloquant**.
 
+**Débrayage** : `TRIPWIRE_OFF=1` (session) ou `.tripwire-off` à la racine
+(dépôt, ignoré par git) coupe les trois hooks Claude Code et le hook du plugin.
+Silence total, rien désinstallé. Le pre-push reste ; `--no-verify` est son
+échappatoire.
+
 **Hook du plugin** (`hooks/hooks.json`, découvert automatiquement) : un
 `SessionStart` qui, dans n'importe quel dépôt équipé, compare son tampon
 `# tripwire-template:` à la version du plugin et prescrit `/tripwire:init` s'il

@@ -19,7 +19,7 @@ Extracted from the KaSe_firmware project's workflow.
 ## What makes a guardrail stop guarding
 
 A pipeline that is green by default, whose red is routine, and whose warnings
-repeat forever stops being a guardrail. It becomes reassurance. Five rules,
+repeat forever stops being a guardrail. It becomes reassurance. Six rules,
 each learned the hard way, keep tripwire from drifting there.
 
 **A severity ladder, not one alarm.** During work → inform. At the conclusion →
@@ -54,15 +54,21 @@ agent cannot quietly erase it. Absent file → inert.
 **What the product must do is written down — before it breaks.** A month on a
 keyboard firmware: 30 fixes, most without a test, all on radio, sleep and
 timing — and a green pipeline throughout. Every fix named a rule after the
-fact ("a wake-up is activity"), rules that existed nowhere but in the commit
-that repaired them. `COMPORTEMENTS.md` (committed, plain markdown) lists the
-expected behaviors, each tagged by what guards it: `[test:X]` (X exists in a
-test file), `[smoke:X]` (X is an item of the hardware smoke test, walked by a
-human at release), or `[NON GARDÉ]` — the admission, counted and ratcheted.
-`check.sh` turns red when a guard vanishes. And the question is **forced**: a
-source edited without a test or a contract line is asked "which behavior, which
-test?" during work, and blocked at Stop. The escape is one `[NON GARDÉ]` line —
-counted, so the ratchet makes the debt visible at push.
+fact, rules that existed nowhere but in the commit that repaired them.
+`COMPORTEMENTS.md` (committed, plain markdown) lists the expected behaviors,
+each tagged by what guards it: `[test:X]` (X exists in a test file — the only
+guard `check.sh` verifies: red if X vanishes), `[smoke:X]` (a note for the
+manual smoke test at release), or `[NON GARDÉ]` — the admission, counted and
+ratcheted. A source edited without a test or a contract line gets a one-line
+advisory. Not a block: a week of blocking at Stop on a real project taxed 66
+commits with a contract line and turned a coarse `[smoke:]` tag into the
+universal escape. The question is useful; the constraint was not.
+
+**You can disengage it.** `TRIPWIRE_OFF=1` in the environment (per session) or
+a `.tripwire-off` file at the root (per repo, gitignored) silences every Claude
+Code hook and the plugin's own — nothing uninstalled. Hooks cost tokens on
+every edit and every turn; a guardrail you cannot switch off gets worked around
+instead. The git `pre-push` stays; `--no-verify` is its escape.
 
 ## Large projects
 
