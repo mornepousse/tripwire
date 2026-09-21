@@ -111,6 +111,17 @@ scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1; chk "embrayé: stop bloque 
 printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh
 ./scripts/check.sh --fast --force >/dev/null 2>&1
 
+# ===== Section CLAUDE.md scaffoldée : courte =====
+# Elle est lue à chaque session dans chaque dépôt : 60 lignes = 600-780 tokens
+# de doctrine que l'agent n'a pas besoin de comprendre pour subir les hooks.
+sed -e 's|{{FAST_DESC}}|tests rapides|g' -e 's|{{VARIANT_LIST_DESC}}|le build|g' -e 's|{{TDD_SCOPE}}|logique pure|g' \
+    "$PLUGIN/skills/init/templates/claude-md-section.md.tmpl" > section.md
+N="$(grep -cv '^[[:space:]]*$' section.md)"
+[ "$N" -le 15 ]; chk "section CLAUDE.md: <= 15 lignes non vides (got $N)" 0 $?
+grep -q 'TRIPWIRE_OFF' section.md; chk "section CLAUDE.md: dit comment débrayer" 0 $?
+grep -q 'check.sh --fast' section.md; chk "section CLAUDE.md: dit la commande" 0 $?
+rm -f section.md
+
 # ===== Dogfood : les fonctions dupliquées restent identiques au template =====
 # La duplication est voulue (un check.sh scaffoldé est autonome). Elle a dérivé un
 # mois sans que rien le voie : un bump via un outil texte a avalé l'octet CR de
