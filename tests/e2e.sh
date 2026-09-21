@@ -22,8 +22,14 @@ sed -e 's|{{PROJECT_NAME}}|toy|g' \
     -e 's|{{VARIANT_BUILD_CMD}}|./build.sh|g' \
     -e 's|{{SRC_GREP}}|^src/|g' \
     -e 's|{{TEST_GREP}}|^test/|g' \
-    -e 's|{{TEST_COUNT_CMD}}|cat ntests.txt|g' \
     "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check.sh
+# Briques : chaque mécanisme optionnel est un fichier de scripts/tripwire.d/,
+# sourcé par le noyau s'il existe. Ici on les installe toutes.
+mkdir -p scripts/tripwire.d
+sed -e 's|{{TEST_COUNT_CMD}}|cat ntests.txt|g' \
+    "$PLUGIN/skills/init/templates/tripwire.d/ratchet.sh.tmpl" > scripts/tripwire.d/ratchet.sh
+cp "$PLUGIN/skills/init/templates/tripwire.d/divergences.sh.tmpl" scripts/tripwire.d/divergences.sh
+cp "$PLUGIN/skills/init/templates/tripwire.d/contrat.sh.tmpl" scripts/tripwire.d/contrat.sh
 sed -e 's|{{PROJECT_NAME}}|toy|g' -e '/{{ENV_SETUP_BLOCK}}/d' \
     "$PLUGIN/skills/init/templates/pre-push.tmpl" > scripts/hooks/pre-push
 cp "$PLUGIN/skills/init/templates/install-hooks.sh.tmpl" scripts/install-hooks.sh
@@ -121,14 +127,42 @@ grep -q 'TRIPWIRE_OFF' section.md; chk "section CLAUDE.md: dit comment débrayer
 grep -q 'check.sh --fast' section.md; chk "section CLAUDE.md: dit la commande" 0 $?
 rm -f section.md
 
+# ===== Noyau seul : sans brique, rien ne manque et rien ne traîne =====
+# Un dépôt standard n'a que le noyau. Il doit être vert, rouge, et ne créer
+# aucun fichier d'état ni mentionner un mécanisme absent.
+NU="$(mktemp -d)"; mkdir -p "$NU/scripts/hooks" && ( cd "$NU" && git init -q -b main )   # HORS du repo jouet : un .git imbriqué casserait son empreinte
+printf '#!/usr/bin/env bash\nexit 0\n' > "$NU/fast.sh"; chmod +x "$NU/fast.sh"; cp "$NU/fast.sh" "$NU/build.sh"
+sed -e 's|{{PROJECT_NAME}}|nu|g' -e 's|{{TRIPWIRE_VERSION}}|v9.9.9|g' -e 's|{{VARIANTS_SPACE_SEPARATED}}||g' \
+    -e 's|{{FAST_CMD}}|./fast.sh|g' -e 's|{{VARIANT_BUILD_CMD}}|./build.sh|g' -e 's|{{SRC_GREP}}||g' -e 's|{{TEST_GREP}}||g' \
+    "$PLUGIN/skills/init/templates/check.sh.tmpl" > "$NU/scripts/check.sh"; chmod +x "$NU/scripts/check.sh"
+( cd "$NU" && ./scripts/check.sh --force >/dev/null 2>&1 ); chk "noyau seul: full vert" 0 $?
+[ ! -e "$NU/.tripwire-testcount" ]; chk "noyau seul: aucun fichier d'état créé" 0 $?
+OUT="$(cd "$NU" && ./scripts/check.sh --force 2>&1)"
+echo "$OUT" | grep -qi 'ratchet\|divergence\|contrat'; chk "noyau seul: aucun mécanisme absent mentionné" 1 $?
+printf '#!/usr/bin/env bash\nexit 1\n' > "$NU/fast.sh"
+( cd "$NU" && ./scripts/check.sh --fast --force >/dev/null 2>&1 ); chk "noyau seul: fast rouge" 1 $?
+N="$(grep -cv '^[[:space:]]*$' "$NU/scripts/check.sh")"
+[ "$N" -le 160 ]; chk "noyau seul: <= 160 lignes non vides — plafond, pas cible (got $N)" 0 $?
+rm -rf "$NU"
+# Une brique se retire par rm : le mécanisme devient inerte, rien ne casse.
+mv scripts/tripwire.d/divergences.sh "$TMP/div.bak"
+printf 'scripts/check.sh\tje-nexiste-pas\tsonde\n' > .tripwire-divergences
+./scripts/check.sh --fast --force >/dev/null 2>&1; chk "brique retirée: divergences inertes (vert malgré une divergence perdue)" 0 $?
+mv "$TMP/div.bak" scripts/tripwire.d/divergences.sh
+./scripts/check.sh --fast --force >/dev/null 2>&1; chk "brique remise: divergences actives (rouge)" 1 $?
+rm -f .tripwire-divergences
+
 # ===== Dogfood : les fonctions dupliquées restent identiques au template =====
 # La duplication est voulue (un check.sh scaffoldé est autonome). Elle a dérivé un
 # mois sans que rien le voie : un bump via un outil texte a avalé l'octet CR de
 # scripts/check.sh, tuant sa protection CRLF. Comparaison à l'octet, pas au diff.
-for fn in check_divergences check_comportements; do
-  A="$(awk "/^$fn\\(\\) \\{/,/^\\}\$/" "$PLUGIN/scripts/check.sh" | md5sum | cut -d' ' -f1)"
-  B="$(awk "/^$fn\\(\\) \\{/,/^\\}\$/" "$PLUGIN/skills/init/templates/check.sh.tmpl" | md5sum | cut -d' ' -f1)"
-  chk "dogfood: $fn identique au template (octet)" "$B" "$A"
+# Chaque brique installée dans le plugin est identique à son template, hors la
+# ligne de valeur projet (la seule qui diffère légitimement).
+for br in "$PLUGIN"/scripts/tripwire.d/*.sh; do
+  n="$(basename "$br")"
+  A="$(grep -v '^TEST_COUNT_CMD=' "$br" | md5sum | cut -d' ' -f1)"
+  B="$(grep -v '^TEST_COUNT_CMD=' "$PLUGIN/skills/init/templates/tripwire.d/$n.tmpl" | md5sum | cut -d' ' -f1)"
+  chk "dogfood: brique $n identique au template (octet)" "$B" "$A"
 done
 
 # ===== Hook SessionStart du plugin : un scaffold en retard se signale tout seul =====

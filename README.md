@@ -73,7 +73,7 @@ instead. The git `pre-push` stays; `--no-verify` is its escape.
 ## Large projects
 
 The "fast < 30 s on every edit" contract holds on large repos too, thanks to
-four mechanisms in the generated `check.sh`:
+four mechanisms in the generated `check.sh` — and everything optional (test ratchet, declared divergences, behavior contract) lives in `scripts/tripwire.d/` as a brick, installed only if you ask for it and removed with `rm`:
 
 - **Skip-if-already-green**: a fingerprint of the repo state (HEAD + diff +
   untracked files) is stored per mode in `.git/tripwire/`; if nothing moved

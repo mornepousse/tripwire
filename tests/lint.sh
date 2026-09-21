@@ -48,5 +48,16 @@ then
   echo "✗ skills/init/SKILL.md : la table « Historique des templates » n'est pas triée par version" >&2; rc=1
 fi
 
+# Le dogfood doit lancer e2e en phase complète. Un re-scaffold a failli y mettre
+# la commande fast à la place : « tout vert » sans qu'aucun test ne tourne.
+if ! grep -q 'bash tests/e2e.sh' scripts/check.sh; then
+  echo "✗ scripts/check.sh : la phase complète ne lance pas tests/e2e.sh — le dogfood serait un faux vert" >&2; rc=1
+fi
+# Le dogfood est un noyau + des briques : la brique ratchet doit être là (le
+# plugin cliquette ses propres assertions), avec sa commande de comptage.
+if ! grep -q "^TEST_COUNT_CMD=\"grep -c 'chk \.' tests/e2e.sh\"" scripts/tripwire.d/ratchet.sh 2>/dev/null; then
+  echo "✗ scripts/tripwire.d/ratchet.sh : brique ratchet absente ou sans commande de comptage" >&2; rc=1
+fi
+
 [ "$rc" -eq 0 ] && echo "✓ lint OK"
 exit "$rc"

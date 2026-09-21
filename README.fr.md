@@ -77,7 +77,7 @@ son échappatoire.
 ## Gros projets
 
 Le contrat « fast < 30 s à chaque édition » tient aussi sur les gros repos grâce
-à trois mécanismes du `check.sh` généré :
+à trois mécanismes du `check.sh` généré — et tout ce qui est optionnel (ratchet de tests, divergences déclarées, contrat de comportements) vit dans `scripts/tripwire.d/`, une brique installée seulement si on la demande et retirée par `rm` :
 
 - **Skip-si-déjà-vert** : empreinte de l'état du repo (HEAD + diff + fichiers
   non trackés) mémorisée par mode dans `.git/tripwire/` ; si rien n'a bougé

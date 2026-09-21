@@ -43,6 +43,13 @@ Si `scripts/check.sh` existe déjà dans le repo cible :
   dans la sortie, puis lancer `./scripts/check.sh --fast` — c'est l'assertion
   qui prononce le verdict, pas votre relecture. Un motif non réinjectable :
   s'arrêter et demander l'arbitrage (AskUserQuestion), jamais écraser en silence.
+- **Monolithe (scaffold < v0.16.0, pas de `scripts/tripwire.d/`)** : proposer le
+  découpage. Relire les valeurs projet du monolithe (`FAST_RUN_CMD`, build,
+  `ALL_VARIANTS`, `SRC_GREP`/`TEST_GREP`, `TEST_COUNT_CMD`), générer le noyau,
+  et n'installer que les briques dont le fichier d'état existe déjà :
+  `.tripwire-testcount` → ratchet, `.tripwire-divergences` → divergences,
+  `COMPORTEMENTS.md` → contrat. Rien d'autre. Le hook par édition perd
+  `--changed` (scoping monorepo retiré en v0.16.0, zéro utilisateur).
 - Ne jamais écraser un `check.sh` existant sans accord explicite.
 
 ### Cas particulier : dialecte divergent (scaffold ancêtre ou modifié)
@@ -205,8 +212,21 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | `cc_session_start.sh.tmpl` | `scripts/hooks/cc_session_start.sh` | `+x` |
 | `gitlab-ci.yml.tmpl` | `.gitlab-ci.yml` (si CI acceptée, forge gitlab, fichier absent) | — |
 | `github-actions.yml.tmpl` | `.github/workflows/tripwire.yml` (si CI acceptée, forge github, fichier absent) | — |
+| `tripwire.d/ratchet.sh.tmpl` | `scripts/tripwire.d/ratchet.sh` — **seulement si** ratchet demandé (question 7) | — |
+| `tripwire.d/divergences.sh.tmpl` | `scripts/tripwire.d/divergences.sh` — **seulement si** le repo a des écarts déclarés | — |
+| `tripwire.d/contrat.sh.tmpl` | `scripts/tripwire.d/contrat.sh` — **seulement si** l'utilisateur veut un `COMPORTEMENTS.md` | — |
 | `settings.json.tmpl` | `.claude/settings.json` (**merge**, voir plus bas) | — |
 | `claude-md-section.md.tmpl` | section ajoutée au `CLAUDE.md` | — |
+
+### Briques : n'installer que ce qui est demandé
+
+`check.sh` est un **noyau** (~160 lignes : modes, verrou, skip-si-déjà-vert,
+phase rapide, phase complète, verdict, historique). Il source
+`scripts/tripwire.d/*.sh` s'ils existent ; chaque brique s'enregistre dans
+`TW_PRE_FAST` ou `TW_POST_FULL` et le noyau l'appelle. Un dépôt standard n'a
+**aucune brique**. Retirer un mécanisme = `rm scripts/tripwire.d/<brique>.sh`.
+Ne jamais installer une brique « au cas où » : chaque ligne installée est une
+ligne à comprendre pour la retirer.
 
 ### Fiche de divergences
 
