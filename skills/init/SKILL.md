@@ -89,6 +89,7 @@ mise à jour :
 | v0.13.0 | **aucun template modifié** — mais le plugin embarque désormais un hook `SessionStart` qui détecte un scaffold en retard dans n'importe quel dépôt équipé et prescrit `/tripwire:init`. Il arrive par `claude plugin update`, rien à re-scaffolder pour en bénéficier |
 | v0.14.0 | **contrat de comportements** — check.sh : `check_comportements()` (`COMPORTEMENTS.md` : `[test:X]`, `[smoke:X]`, `[NON GARDÉ]` ratcheté dans `.tripwire-nongardes`), valeur `SMOKE_DOC`, la question forcée (source modifiée sans test ni contrat → avis, rouge si `TRIPWIRE_CONTRAT_STRICT=1`) ; hooks : `cc_post_edit.sh` pose la question sur toute source (même sur vert — l'avis TDD, lui, n'arrivait jamais jusqu'à l'agent), `cc_stop.sh` et `pre-push` exportent le strict. CRLF : `$'\r'` en séquence d'échappement, plus d'octet nu. Re-scaffold : `check.sh`, les trois hooks, section CLAUDE.md, + poser la question 10 |
 | v0.15.0 | **débrayage** : `TRIPWIRE_OFF=1` ou `.tripwire-off` coupe les hooks Claude Code (post-edit, Stop, SessionStart) et le hook du plugin. **Contrat allégé** : la question n'est plus qu'un avis d'une ligne au post-edit (le Stop ne bloque plus, `TRIPWIRE_CONTRAT_STRICT` disparaît), `[smoke:X]` n'est plus vérifié (note de release), `SMOKE_DOC` et la question 10 disparaissent. Re-scaffold : `check.sh`, les trois hooks, section CLAUDE.md, `.gitignore` |
+| v0.16.0 | **allégé** — section CLAUDE.md scaffoldée : 64 → 12 lignes (600-780 tokens de moins par session) ; scoping monorepo retiré (`MODULE_FAST`, `--changed`, question d'init : zéro utilisateur en trois mois) ; noyau + briques : `check.sh` ne porte plus que le noyau et source `scripts/tripwire.d/*.sh` (ratchet, divergences, contrat — installées seulement si demandées, retirées par `rm`). Re-scaffold : `check.sh`, `cc_post_edit.sh`, section CLAUDE.md ; découpage du monolithe en briques (voir Étape 0) |
 
 ### Cohabitation avec l'outillage tiers (pre-commit, TDD Guard…)
 
@@ -156,24 +157,19 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
    pour un fichier mort. Préférer une résolution en cascade — env capturé s'il
    est encore valide, puis `nix develop <flake> --command <outil>`, puis saut
    annoncé.
-5. **Modules (monorepo, optionnel)** — ne poser la question que si le repo a
-   l'air d'un monorepo (plusieurs sous-projets avec leurs propres manifests) :
-   liste de couples `glob → commande de test du module` pour router la phase
-   rapide sur le module touché. Sinon : table vide (`{{MODULE_FAST_ENTRIES}}`
-   remplacé par rien).
-6. **CI (optionnel)** — proposer de générer la CI à étages (fast sur MR/PR,
+5. **CI (optionnel)** — proposer de générer la CI à étages (fast sur MR/PR,
    full sur la branche par défaut + nightly). Forge déduite de
    `git remote get-url origin` (gitlab/github ; pas de remote → sauter).
    GitLab : demander l'image docker (`{{CI_IMAGE}}`, défaut `debian:stable-slim`
    avec l'avertissement d'y mettre la toolchain du projet).
    **Ne jamais écraser** un `.gitlab-ci.yml`/workflow existant — proposer le
    contenu à intégrer à la main.
-7. **Timeout du hook Stop** — défaut 600 s dans `settings.json`. Le hook Stop
+6. **Timeout du hook Stop** — défaut 600 s dans `settings.json`. Le hook Stop
    ne lance que `check.sh --fast` (garde-fou léger), jamais le build/e2e complet
    (réservé au pre-push), donc le défaut suffit quasiment toujours ; ne le
    toucher que si la phase fast elle-même est très longue (sed après copie ; le
    template reste du JSON valide).
-8. **Ratchet de tests (optionnel)** — commande une-ligne qui imprime le nombre
+7. **Ratchet de tests (optionnel)** — commande une-ligne qui imprime le nombre
    de tests (`{{TEST_COUNT_CMD}}`), ou « aucun » (ratchet inerte). Défauts :
 
    | Stack | TEST_COUNT_CMD | ASSERT_PATTERN |
@@ -187,7 +183,7 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
    Si activé : `.tripwire-testcount` est créé au premier check vert et doit
    être **committé** (comme `.tripwire-variant`) — baisser le ratchet = diff
    visible en review.
-9. **Chemins de test** — dérivés de la question 3 ou demandés : patterns
+8. **Chemins de test** — dérivés de la question 3 ou demandés : patterns
    `case` (`{{TEST_PATH_PATTERNS}}`, ex. `*"/test/"*`), forme grep
    (`{{TEST_GREP}}`, ex. `^test/`) et forme grep des sources
    (`{{SRC_GREP}}`, ex. `^src/|^main/`). Vérifier que les chemins de test

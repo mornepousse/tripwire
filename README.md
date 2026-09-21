@@ -73,15 +73,12 @@ instead. The git `pre-push` stays; `--no-verify` is its escape.
 ## Large projects
 
 The "fast < 30 s on every edit" contract holds on large repos too, thanks to
-five mechanisms in the generated `check.sh`:
+four mechanisms in the generated `check.sh`:
 
 - **Skip-if-already-green**: a fingerprint of the repo state (HEAD + diff +
   untracked files) is stored per mode in `.git/tripwire/`; if nothing moved
   since the last green run, the check exits immediately. `--force` or
   `TRIPWIRE_FORCE=1` to override (e.g. after a toolchain update).
-- **Monorepo scoping**: a `MODULE_FAST=("glob:command" …)` table in check.sh;
-  hooks pass the edited file (`--changed`) and the fast phase only runs the
-  touched module's tests.
 - **Lock + debounce**: `flock` prevents concurrent checks (the second one
   exits politely); post-edit hooks won't re-check within `TRIPWIRE_DEBOUNCE`
   seconds of the previous run (default 10).
@@ -191,7 +188,7 @@ claude plugin install tripwire@tripwire
 
 | Skill | Usage |
 |---|---|
-| `/tripwire:init` | Scaffolds check.sh (skip-if-green, monorepo scoping, lock, budget guard, test ratchet, declared-divergence assertion), git hooks, Claude Code hooks (PostToolUse advisory / Stop and pre-push blocking, SessionStart), optional staged CI, CLAUDE.md config section. **Re-run on an equipped project**: detects outdated scaffolds via the `# tripwire-template:` stamp and proposes a targeted update without touching your commands |
+| `/tripwire:init` | Scaffolds check.sh (skip-if-green, lock, budget guard, test ratchet, declared-divergence assertion), git hooks, Claude Code hooks (PostToolUse advisory / Stop and pre-push blocking, SessionStart), optional staged CI, CLAUDE.md config section. **Re-run on an equipped project**: detects outdated scaffolds via the `# tripwire-template:` stamp and proposes a targeted update without touching your commands |
 | `/tripwire:gen-agents` | Generates up to 5 project-specialized agents: test-author / code-reviewer / debugger / maintainer / security-auditor (the last two with persistent cross-session memory; judgment agents pinned to `model: sonnet`) |
 | `/tripwire:release` | Release workflow: git tag = version, semver bump proposed from commits, green check mandatory, version-manifest sync, glab/gh release |
 | `/tripwire:status` | One-shot diagnosis: scaffold up to date? hooks active? last green/red? **fast-phase fitness** — persistent overrun, sudden jump, never green, fast identical to full — each with a concrete action; watched-path blind spots. `--fleet` mode: a table of all equipped repos |

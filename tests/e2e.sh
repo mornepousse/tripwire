@@ -18,7 +18,6 @@ printf '#!/usr/bin/env bash\nexit 0\n' > build.sh && chmod +x build.sh
 sed -e 's|{{PROJECT_NAME}}|toy|g' \
     -e 's|{{TRIPWIRE_VERSION}}|v9.9.9|g' \
     -e 's|{{VARIANTS_SPACE_SEPARATED}}||g' \
-    -e 's|{{MODULE_FAST_ENTRIES}}||g' \
     -e 's|{{FAST_CMD}}|./fast.sh|g' \
     -e 's|{{VARIANT_BUILD_CMD}}|./build.sh|g' \
     -e 's|{{SRC_GREP}}|^src/|g' \
@@ -202,28 +201,6 @@ if command -v flock >/dev/null 2>&1; then
 else
   echo "~ flock absent — test verrou sauté"
 fi
-
-# Scoping module : --changed route la phase rapide sur le module touché
-mkdir -p modA
-printf '#!/usr/bin/env bash\ntouch modA.ran\nexit 0\n' > modA.sh && chmod +x modA.sh
-sed -e 's|{{PROJECT_NAME}}|toy|g' \
-    -e 's|{{TRIPWIRE_VERSION}}|v9.9.9|g' \
-    -e 's|{{VARIANTS_SPACE_SEPARATED}}||g' \
-    -e 's#{{MODULE_FAST_ENTRIES}}#"*/modA/*:./modA.sh"#' \
-    -e 's|{{FAST_CMD}}|./fast.sh|g' \
-    -e 's|{{VARIANT_BUILD_CMD}}|./build.sh|g' \
-    -e 's|{{SRC_GREP}}||g' \
-    -e 's|{{TEST_GREP}}||g' \
-    -e 's|{{TEST_COUNT_CMD}}||g' \
-    "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check_mod.sh
-chmod +x scripts/check_mod.sh
-rm -f modA.ran
-./scripts/check_mod.sh --fast --changed "$TMP/modA/x.c" --force >/dev/null 2>&1
-chk "module: rc vert" 0 $?
-[ -f modA.ran ]; chk "module: commande du module exécutée" 0 $?
-rm -f modA.ran
-./scripts/check_mod.sh --fast --changed "$TMP/src/a.c" --force >/dev/null 2>&1
-[ -f modA.ran ]; chk "module: hors module -> fast global" 1 $?
 
 # Templates CI : instanciation sans résidu, étages fast/full présents
 sed -e 's|{{CI_IMAGE}}|debian:stable-slim|g' \
@@ -475,7 +452,6 @@ chmod +x build.sh
 sed -e 's|{{PROJECT_NAME}}|toy-multi|g' \
     -e 's|{{TRIPWIRE_VERSION}}|v9.9.9|g' \
     -e 's|{{VARIANTS_SPACE_SEPARATED}}|v1 v2|g' \
-    -e 's|{{MODULE_FAST_ENTRIES}}||g' \
     -e 's|{{FAST_CMD}}|./fast.sh|g' \
     -e 's|{{VARIANT_BUILD_CMD}}|./build.sh "$v"|g' \
     -e 's|{{SRC_GREP}}||g' \

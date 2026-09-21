@@ -7,8 +7,6 @@
 #   check.sh --fast           -> phase rapide uniquement (~secondes)
 #   check.sh --variant <name> -> phase rapide + une seule variante
 # Options:
-#   --changed <fichier>       -> (passé par les hooks) route la phase rapide sur le
-#                                module touché si MODULE_FAST est renseigné
 #   --force                   -> ignore le skip-si-déjà-vert (aussi: TRIPWIRE_FORCE=1)
 # Env:
 #   TRIPWIRE_FAST_BUDGET      -> budget de la phase rapide en secondes (défaut 30) ;
@@ -25,11 +23,6 @@ cd "$PROJECT_DIR" || exit 1
 # Variantes de build. Laisser vide pour un projet mono-cible.
 ALL_VARIANTS=({{VARIANTS_SPACE_SEPARATED}})
 
-# Modules (monorepo, optionnel) : quand un hook passe --changed <fichier>, la
-# phase rapide est routée sur le premier module dont le glob matche. Sans match
-# ou table vide : phase rapide globale. Format "<glob>:<commande>". Exemple :
-#   MODULE_FAST=( "*/services/api/*:cd services/api && npm test -s" )
-MODULE_FAST=({{MODULE_FAST_ENTRIES}})
 
 # Ratchet de tests (optionnel) : commande une-ligne qui imprime le nombre de
 # tests. Vide -> ratchet inerte. Référence committée : .tripwire-testcount
@@ -46,31 +39,20 @@ fail() { echo "${RED}✗ $*${NC}" >&2; }
 ok()   { echo "${GREEN}✓ $*${NC}"; }
 info() { echo "${YEL}» $*${NC}"; }
 
-MODE="full"; SINGLE_VARIANT=""; CHANGED=""; FORCE="${TRIPWIRE_FORCE:-0}"
+MODE="full"; SINGLE_VARIANT=""; FORCE="${TRIPWIRE_FORCE:-0}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --fast)    MODE="fast" ;;
     --variant) MODE="single"; SINGLE_VARIANT="${2:-}"
                [ -z "$SINGLE_VARIANT" ] && { fail "--variant requires a name"; exit 2; }
                shift ;;
-    --changed) CHANGED="${2:-}"; shift ;;
     --force)   FORCE=1 ;;
     *)         fail "unknown arg: $1"; exit 2 ;;
   esac
   shift
 done
 
-# ---- Résolution du scope de la phase rapide (module éventuel) ----
-FAST_RUN_CMD="{{FAST_CMD}}"; FAST_LABEL="Phase rapide"; SCOPE_KEY=""
-if [ -n "$CHANGED" ]; then
-  for _e in ${MODULE_FAST[@]+"${MODULE_FAST[@]}"}; do
-    case "$CHANGED" in
-      ${_e%%:*}) FAST_RUN_CMD="${_e#*:}"; FAST_LABEL="Module ${_e%%:*}"
-                 SCOPE_KEY="-mod-$(printf '%s' "${_e%%:*}" | git hash-object --stdin 2>/dev/null | cut -c1-8)"
-                 break ;;
-    esac
-  done
-fi
+FAST_RUN_CMD="{{FAST_CMD}}"; FAST_LABEL="Phase rapide"
 
 # ---- Verrou : un seul check à la fois (hooks concurrents) ----
 GITDIR="$(git rev-parse --git-dir 2>/dev/null || echo .git)"
@@ -102,7 +84,7 @@ fingerprint() {
       | git hash-object --stdin-paths 2>/dev/null || true
   } | git hash-object --stdin 2>/dev/null || date +%s.%N
 }
-KEY="$MODE${SINGLE_VARIANT:+-$SINGLE_VARIANT}$SCOPE_KEY"
+KEY="$MODE${SINGLE_VARIANT:+-$SINGLE_VARIANT}"
 [ "${TRIPWIRE_RATCHET_STRICT:-0}" = "1" ] && KEY="$KEY-strict"   # un run strict ne skippe que contre un vert strict
 STAMP="$GITDIR/tripwire/green-$KEY"
 FP="$(fingerprint)"
@@ -222,7 +204,7 @@ run_fast() {
   fi
   local dt=$((SECONDS - t0)) budget="${TRIPWIRE_FAST_BUDGET:-30}"
   if [ "$dt" -gt "$budget" ]; then
-    info "⚠ phase rapide: ${dt}s > budget ${budget}s — déplacer des tests vers le check complet ou scoper par module (MODULE_FAST)"
+    info "⚠ phase rapide: ${dt}s > budget ${budget}s — déplacer des tests vers le check complet"
   fi
   return "$rc"
 }

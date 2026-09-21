@@ -77,15 +77,12 @@ son échappatoire.
 ## Gros projets
 
 Le contrat « fast < 30 s à chaque édition » tient aussi sur les gros repos grâce
-à quatre mécanismes du `check.sh` généré :
+à trois mécanismes du `check.sh` généré :
 
 - **Skip-si-déjà-vert** : empreinte de l'état du repo (HEAD + diff + fichiers
   non trackés) mémorisée par mode dans `.git/tripwire/` ; si rien n'a bougé
   depuis le dernier vert, le check sort immédiatement. `--force` ou
   `TRIPWIRE_FORCE=1` pour outrepasser (ex. toolchain mise à jour).
-- **Scoping monorepo** : table `MODULE_FAST=("glob:commande" …)` dans check.sh ;
-  les hooks passent le fichier édité (`--changed`) et la phase rapide ne lance
-  que les tests du module touché.
 - **Verrou + debounce** : `flock` empêche deux checks concurrents (le second
   sort poliment) ; les hooks post-édition ne relancent pas de check à moins de
   `TRIPWIRE_DEBOUNCE` secondes du précédent (défaut 10).
@@ -202,7 +199,7 @@ claude plugin install tripwire@tripwire
 
 | Skill | Usage |
 |---|---|
-| `/tripwire:init` | Scaffolde check.sh (skip-si-vert, scoping monorepo, verrou, garde-budget, ratchet de tests, assertion de divergences déclarées), hooks git, hooks Claude Code (PostToolUse en avis / Stop et pre-push bloquants, SessionStart), CI à étages optionnelle, section CLAUDE.md. **Relancé sur un projet équipé** : détecte les scaffolds en retard via le tampon `# tripwire-template:` et propose une mise à jour ciblée sans écraser vos commandes |
+| `/tripwire:init` | Scaffolde check.sh (skip-si-vert, verrou, garde-budget, ratchet de tests, assertion de divergences déclarées), hooks git, hooks Claude Code (PostToolUse en avis / Stop et pre-push bloquants, SessionStart), CI à étages optionnelle, section CLAUDE.md. **Relancé sur un projet équipé** : détecte les scaffolds en retard via le tampon `# tripwire-template:` et propose une mise à jour ciblée sans écraser vos commandes |
 | `/tripwire:gen-agents` | Génère jusqu'à 5 agents spécialisés au projet : test-author / code-reviewer / debugger / maintainer / security-auditor (les deux derniers avec mémoire persistante inter-sessions) |
 | `/tripwire:release` | Workflow de release : tag git = version, bump semver proposé depuis les commits, check vert obligatoire, sync des manifests de version, glab/gh release |
 | `/tripwire:status` | Diagnostic one-shot : scaffold à jour ? hooks actifs ? dernier vert/rouge ? **adéquation de la phase rapide** — dépassement persistant, saut soudain, jamais verte, fast identique à full — chacun avec une action concrète ; angles morts de surveillance. Mode `--fleet` : tableau de tous les repos équipés |
