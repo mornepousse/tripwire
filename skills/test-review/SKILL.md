@@ -31,6 +31,11 @@ Le coût d'un gros audit est dans la **lecture**, pas le jugement. Deux étages 
    - liste brute des assertions (pattern + ligne) ;
    - `#define`/constantes recopiés du code de prod (citer les deux côtés) ;
    - fonctions de prod appelées vs réimplémentées localement.
+   Un **LLM local** (llama-server, ollama) convient ici — c'est le seul endroit
+   du plugin où c'est sûr : l'extracteur n'émet aucun verdict et chaque
+   citation est revérifiée. Si un serveur local répond (`curl -s -m2
+   localhost:8080/v1/models`), l'appeler par Bash avec le même prompt ; sinon
+   haiku. Le juge reste sonnet minimum, quoi qu'il arrive.
 2. **Juge unique** (modèle fort — jugement = jamais de modèle économique) :
    rend le verdict de la grille depuis les fiches, en n'ouvrant lui-même que
    les fichiers où une fiche est ambiguë ou suspecte.

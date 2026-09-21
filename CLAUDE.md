@@ -55,6 +55,14 @@ l'implémentation, verte après.
   — e2e/lint rattrapent la dérive.
 - Jamais sous sonnet : review, audit, debug, écriture d'assertions (une
   tautologie passe l'oracle au vert). Revue finale : le plus fort disponible.
+- **Étage local** (llama-server, ollama…), sous haiku : uniquement de
+  l'extraction **citée** (`fichier:ligne`, extraits verbatim), jamais un
+  verdict, jamais du code. Sa sortie n'est admise que si chaque citation est
+  revérifiée par grep par le modèle qui juge — une extraction fausse est alors
+  rattrapée, une conclusion fausse ne le serait pas. Appel par Bash
+  (`curl` sur l'API OpenAI-compatible du serveur) ; serveur absent → haiku.
+  Pas de mécanisme dans tripwire tant qu'on ne sait pas ce que les skills
+  coûtent réellement — mesurer d'abord.
 
 ## Release
 
