@@ -5,7 +5,7 @@ Source unique de vérité : `scripts/check.sh`.
 - `./scripts/check.sh` — fast + {{VARIANT_LIST_DESC}} (pre-push, CI).
 - Rouge → lire `.git/tripwire/last-fail.log`, corriger. Jamais contourné sans raison écrite.
 
-Hooks Claude Code : `PostToolUse` → `--fast` en avis ; `Stop` → `--fast`, bloque ; `pre-push` → complet, bloque.
+Hooks : `Stop` → `--fast` si l'état a bougé, bloque une fois par rouge ; `pre-push` → complet, bloque. Lancer les tests soi-même en cours de route.
 Débrayage : `TRIPWIRE_OFF=1` (session) ou `.tripwire-off` (dépôt, non suivi). `git push --no-verify` pour le pre-push.
 Nouvelle logique pure ({{TDD_SCOPE}}) : test rouge d'abord, vert après.
 Fichiers à lire avant de toucher une source, s'ils existent : `COMPORTEMENTS.md` (ce que le produit doit faire), `.tripwire-divergences` (écarts assumés au scaffold).

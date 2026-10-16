@@ -1,6 +1,6 @@
 ---
 name: status
-description: Use when checking the health of a tripwire-equipped project — scaffold up to date? git/platform hooks active? last check green and when? fast-phase duration drift? watched-path blind spots? Also fleet mode across all equipped repos. Trigger on "/tripwire:status", "état du tripwire", "diagnostic tripwire", "le tripwire est à jour ?", "/tripwire:status --fleet", "état de la flotte tripwire".
+description: Use when checking the health of a tripwire-equipped project — scaffold up to date? git/platform hooks active? last check green and when? fast-phase duration drift? Also fleet mode across all equipped repos. Trigger on "/tripwire:status", "état du tripwire", "diagnostic tripwire", "le tripwire est à jour ?", "/tripwire:status --fleet", "état de la flotte tripwire".
 ---
 
 # tripwire:status — diagnostic one-shot
@@ -24,7 +24,8 @@ recommander `/tripwire:init`.
 ```bash
 git config --get core.hooksPath       # attendu: scripts/hooks (sinon: lancer scripts/install-hooks.sh)
 ls scripts/hooks/                     # pre-push + hooks cc_ présents ?
-grep -o 'scripts/hooks/[a-z_]*\.sh' .claude/settings.json 2>/dev/null || true
+grep -o 'scripts/hooks/[a-z_]*\.sh' .claude/settings.json .claude/settings.local.json 2>/dev/null || true
+test -e scripts/hooks/cc_post_edit.sh && echo "hook par édition encore là (supprimé en v0.17.0) — /tripwire:init"
 ```
 
 ### 3. État
@@ -66,7 +67,7 @@ grep -m1 -A4 '^build_variant()' scripts/check.sh
 
 | constat | ce que ça veut dire | action à proposer |
 |---|---|---|
-| DÉRIVE persistante | la boucle courte n'en est plus une ; le garde-budget crie dans le vide depuis longtemps | découper par module (`MODULE_FAST` existe déjà), ou déplacer la partie lente vers la phase complète |
+| DÉRIVE persistante | la boucle courte n'en est plus une ; le garde-budget crie dans le vide depuis longtemps | déplacer la partie lente vers la phase complète |
 | SAUT soudain | un changement récent l'a alourdie, et rien ne l'a signalé comme un événement | identifier ce qui a été ajouté depuis le dernier run court, puis découper ou déplacer |
 | JAMAIS VERTE | elle signale autre chose qu'une régression — environnement absent, chemin mort, fichier d'env périmé | lire `last-fail.log` : si la cause est un outil manquant, elle doit **sauter en annonçant**, pas rougir (voir la règle de l'Étape 2 d'init) |
 | phase rapide == phase complète | il n'y a pas de boucle courte du tout | lui donner un oracle rapide propre au projet (tests hôte, lint, ERC…) et laisser le build en phase complète |
@@ -74,17 +75,6 @@ grep -m1 -A4 '^build_variant()' scripts/check.sh
 
 Si un constat sort, recommander `/tripwire:init` — il rouvre l'entretien de la
 phase rapide au lieu de la préserver aveuglément (voir son Étape 0).
-
-### 5. Dérive de surveillance (heuristique — « à vérifier », pas verdict)
-```bash
-git log --since='30 days ago' --name-only --pretty=format: 2>/dev/null | grep -v '^$' \
-  | cut -d/ -f1 | sort -u        # dossiers actifs (repli: git ls-files si repo < 30 j)
-grep -h -A1 'case "\$FP" in' scripts/hooks/*post_edit.sh | sed -n '2p'   # la ligne de patterns suit le case
-```
-Comparer : tout dossier actif contenant du code, absent des patterns, hors
-`docs/`, fichiers racine, `scripts/` et dossiers de config (`.claude/`,
-`.github/`) → le lister comme angle mort potentiel avec la ligne
-`case` corrigée à proposer.
 
 ## Sortie
 

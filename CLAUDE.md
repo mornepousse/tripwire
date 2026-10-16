@@ -20,17 +20,15 @@ Source unique de vérité : `scripts/check.sh` (le plugin mange sa propre nourri
 ```
 `pre-push` lance le check complet et bloque le push si rouge. WIP : `git push --no-verify`.
 
-**Hooks Claude Code** (`.claude/settings.json`, automatiques). Échelle de
-gravité : **pendant → informe, à la conclusion → bloque, au push → bloque.**
-- `PostToolUse` sur édition de `skills/`, `tests/` ou `.claude-plugin/` →
-  `check.sh --fast` en **avis non bloquant**. La norme TDD ci-dessous impose un
-  rouge avant l'implémentation : bloquer ici ferait sonner l'alarme à chaque pas
-  correct. Un avis reste à traiter, pas à ignorer.
-- `Stop` → `check.sh --fast` et **bloque** (le e2e complet reste au pre-push).
-- `pre-push` → check complet, **bloquant**.
+**Hooks Claude Code** (`.claude/settings.json`, automatiques). Pas de hook par
+édition depuis v0.17.0 : lancer `./scripts/check.sh --fast` soi-même en cours
+de route.
+- `Stop` → `check.sh --fast` et **bloque**, une fois par état rouge (même état
+  qu'au dernier rouge → rien relancé). Le e2e complet reste au pre-push.
+- `pre-push` → check complet, **bloquant**, à chaque fois.
 
 **Débrayage** : `TRIPWIRE_OFF=1` (session) ou `.tripwire-off` à la racine
-(dépôt, ignoré par git) coupe les trois hooks Claude Code et le hook du plugin.
+(dépôt, ignoré par git) coupe les deux hooks Claude Code et le hook du plugin.
 Silence total, rien désinstallé. Le pre-push reste ; `--no-verify` est son
 échappatoire.
 

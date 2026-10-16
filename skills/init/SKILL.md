@@ -1,6 +1,6 @@
 ---
 name: init
-description: Use when installing the tripwire anti-regression pipeline into a project — scaffolds scripts/check.sh (single source of truth), versioned git hooks (pre-push), Claude Code hooks (PostToolUse/Stop/SessionStart), and a CLAUDE.md config section. Trigger on "installe le tripwire", "ajoute le pipeline anti-régression", "/tripwire:init", "mets en place check.sh".
+description: Use when installing the tripwire anti-regression pipeline into a project — scaffolds scripts/check.sh (single source of truth), versioned git hooks (pre-push), Claude Code hooks (Stop/SessionStart), and a CLAUDE.md config section — or, in a shared repo, a personal install that commits nothing. Trigger on "installe le tripwire", "ajoute le pipeline anti-régression", "/tripwire:init", "mets en place check.sh".
 ---
 
 # tripwire:init — scaffolder le pipeline anti-régression
@@ -50,6 +50,13 @@ Si `scripts/check.sh` existe déjà dans le repo cible :
   `.tripwire-testcount` → ratchet, `.tripwire-divergences` → divergences,
   `COMPORTEMENTS.md` → contrat. Rien d'autre. Le hook par édition perd
   `--changed` (scoping monorepo retiré en v0.16.0, zéro utilisateur).
+- **Mise à jour vers v0.17.0 (plus de hook par édition)** : supprimer
+  `scripts/hooks/cc_post_edit.sh` et son entrée `PostToolUse` de
+  `.claude/settings.json` — **seulement elle** : une entrée `PostToolUse`
+  étrangère (ex. le cppcheck maison de KeSp) reste. Une ligne de
+  `.tripwire-divergences` dont l'hôte est `cc_post_edit.sh` disparaît avec lui :
+  la retirer et dire à l'utilisateur ce qu'elle gardait. Si la fiche n'a plus
+  de ligne utile, la supprimer, et la brique `divergences` avec.
 - Ne jamais écraser un `check.sh` existant sans accord explicite.
 
 ### Cas particulier : dialecte divergent (scaffold ancêtre ou modifié)
@@ -97,6 +104,7 @@ mise à jour :
 | v0.14.0 | **contrat de comportements** — check.sh : `check_comportements()` (`COMPORTEMENTS.md` : `[test:X]`, `[smoke:X]`, `[NON GARDÉ]` ratcheté dans `.tripwire-nongardes`), valeur `SMOKE_DOC`, la question forcée (source modifiée sans test ni contrat → avis, rouge si `TRIPWIRE_CONTRAT_STRICT=1`) ; hooks : `cc_post_edit.sh` pose la question sur toute source (même sur vert — l'avis TDD, lui, n'arrivait jamais jusqu'à l'agent), `cc_stop.sh` et `pre-push` exportent le strict. CRLF : `$'\r'` en séquence d'échappement, plus d'octet nu. Re-scaffold : `check.sh`, les trois hooks, section CLAUDE.md, + poser la question 10 |
 | v0.15.0 | **débrayage** : `TRIPWIRE_OFF=1` ou `.tripwire-off` coupe les hooks Claude Code (post-edit, Stop, SessionStart) et le hook du plugin. **Contrat allégé** : la question n'est plus qu'un avis d'une ligne au post-edit (le Stop ne bloque plus, `TRIPWIRE_CONTRAT_STRICT` disparaît), `[smoke:X]` n'est plus vérifié (note de release), `SMOKE_DOC` et la question 10 disparaissent. Re-scaffold : `check.sh`, les trois hooks, section CLAUDE.md, `.gitignore` |
 | v0.16.0 | **allégé** — section CLAUDE.md scaffoldée : 64 → 12 lignes (600-780 tokens de moins par session) ; scoping monorepo retiré (`MODULE_FAST`, `--changed`, question d'init : zéro utilisateur en trois mois) ; noyau + briques : `check.sh` ne porte plus que le noyau et source `scripts/tripwire.d/*.sh` (ratchet, divergences, contrat — installées seulement si demandées, retirées par `rm`). Re-scaffold : `check.sh`, `cc_post_edit.sh`, section CLAUDE.md ; découpage du monolithe en briques (voir Étape 0) |
+| v0.17.0 | **adapté aux agents actuels** — mesuré sur les transcripts : le Stop se déclenchait à chaque fin de tour (1527 fois dans une session de BDM64, 3 h d'attente cumulée sur nixos-config) et le hook par édition injectait 200 à 400 avis par dépôt. **`cc_post_edit.sh` supprimé** (avec debounce, garde anti-affaiblissement et question du contrat au post-edit — le ratchet du pre-push garde la perte nette d'assertions) ; **Stop** : un rouge donné ne bloque qu'une fois (`TRIPWIRE_RED_ONCE`, rc 3 = déjà signalé, rien relancé) ; **mode perso** pour un dépôt partagé (`perso-exclude.tmpl`, `settings.local.json`, `CLAUDE.local.md`). Re-scaffold : `check.sh`, `cc_stop.sh`, suppression de `cc_post_edit.sh` et de son entrée `settings.json`, section CLAUDE.md (voir Étape 0) |
 
 ### Cohabitation avec l'outillage tiers (pre-commit, TDD Guard…)
 
@@ -112,6 +120,26 @@ mise à jour :
   **version épinglée exacte**, **jamais d'auto-update** : toute montée de
   version = review du diff. Ne jamais installer un greffon tiers sans l'accord
   explicite de l'utilisateur après lui avoir présenté cette surface.
+
+## Étape 0 bis — Dépôt partagé : commun ou perso
+
+Si le dépôt a d'autres contributeurs (`git log --format='%ae' | sort -u` rend
+plus d'une adresse, ou la forge n'appartient pas à l'utilisateur), demander
+(AskUserQuestion) : **commun** (le scaffold est committé, l'équipe l'a) ou
+**perso** (tripwire pour l'utilisateur seul, rien de committé, rien d'imposé).
+
+En **perso**, mêmes templates, quatre différences :
+- ajouter `templates/perso-exclude.tmpl` à `.git/info/exclude` **avant** toute
+  écriture — tout ce que le scaffold crée y est listé ;
+- hooks Claude Code dans `.claude/settings.local.json` (pas `settings.json`) ;
+- section de doc dans `CLAUDE.local.md` (le `CLAUDE.md` de l'équipe n'est pas
+  touché) ;
+- pas de CI, et `.tripwire-testcount` reste local.
+Si le dépôt a déjà des hooks dans `.git/hooks/` (hors `*.sample`),
+`core.hooksPath` les court-circuiterait : appliquer la règle de cohabitation
+(insérer l'appel à `check.sh` dans le hook existant) au lieu de poser
+`core.hooksPath`. Validation en plus : `git status --porcelain` doit rester
+identique à avant le scaffold.
 
 ## Étape 1 — Détection de stack
 
@@ -142,10 +170,7 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
    ou « aucune » (mono-cible). Si variantes : demander la commande de build
    paramétrée par `$v` et la variante par défaut (pour `.tripwire-variant`).
    Si aucune variante : demander/confirmer quand même la commande de build complet — elle alimente `{{VARIANT_BUILD_CMD}}` (le mode full mono-cible = fast + ce build). Même contrainte que la commande fast : pas de substitution `$(...)`.
-3. **Chemins surveillés** — répertoires dont l'édition déclenche le hook
-   PostToolUse (ex. `src/`, `tests/`). Convertir en patterns `case` :
-   `src/` → `*"src/"*`.
-4. **Setup d'environnement** — commande à sourcer avant un build
+3. **Setup d'environnement** — commande à sourcer avant un build
    (ex. `source ~/esp/esp-idf/export.sh`), ou « aucun ». Alimente
    `{{ENV_SETUP_BLOCK}}` dans le `pre-push` ; supprimer la ligne si aucun.
 
@@ -164,38 +189,36 @@ Aucun marqueur → demander les commandes sans proposer de défaut.
    pour un fichier mort. Préférer une résolution en cascade — env capturé s'il
    est encore valide, puis `nix develop <flake> --command <outil>`, puis saut
    annoncé.
-5. **CI (optionnel)** — proposer de générer la CI à étages (fast sur MR/PR,
+4. **CI (optionnel)** — jamais en mode perso — proposer de générer la CI à étages (fast sur MR/PR,
    full sur la branche par défaut + nightly). Forge déduite de
    `git remote get-url origin` (gitlab/github ; pas de remote → sauter).
    GitLab : demander l'image docker (`{{CI_IMAGE}}`, défaut `debian:stable-slim`
    avec l'avertissement d'y mettre la toolchain du projet).
    **Ne jamais écraser** un `.gitlab-ci.yml`/workflow existant — proposer le
    contenu à intégrer à la main.
-6. **Timeout du hook Stop** — défaut 600 s dans `settings.json`. Le hook Stop
+5. **Timeout du hook Stop** — défaut 600 s dans `settings.json`. Le hook Stop
    ne lance que `check.sh --fast` (garde-fou léger), jamais le build/e2e complet
-   (réservé au pre-push), donc le défaut suffit quasiment toujours ; ne le
+   (réservé au pre-push), seulement si l'état a bougé depuis le dernier vert,
+   et un rouge donné ne le fait bloquer qu'une fois ; le défaut suffit ; ne le
    toucher que si la phase fast elle-même est très longue (sed après copie ; le
    template reste du JSON valide).
-7. **Ratchet de tests (optionnel)** — commande une-ligne qui imprime le nombre
+6. **Ratchet de tests (optionnel)** — commande une-ligne qui imprime le nombre
    de tests (`{{TEST_COUNT_CMD}}`), ou « aucun » (ratchet inerte). Défauts :
 
-   | Stack | TEST_COUNT_CMD | ASSERT_PATTERN |
-   |---|---|---|
-   | C host (harnais type KaSe) | `grep -rho 'TEST_ASSERT' test/ \| wc -l` | `TEST_ASSERT` |
-   | Rust | `grep -rho '#\[test\]' src/ \| wc -l` | `assert!\|assert_eq!\|assert_ne!` |
-   | Python | `grep -rho 'def test_' tests/ \| wc -l` | `assert` |
-   | Node / Go / autre | demander | demander |
+   | Stack | TEST_COUNT_CMD |
+   |---|---|
+   | C host (harnais type KaSe) | `grep -rho 'TEST_ASSERT' test/ \| wc -l` |
+   | Rust | `grep -rho '#\[test\]' src/ \| wc -l` |
+   | Python | `grep -rho 'def test_' tests/ \| wc -l` |
+   | Node / Go / autre | demander |
 
-   Mêmes contraintes que la commande fast (pas de `$(...)`, pas de `"`), et **pas de `$` non échappé** — `TEST_COUNT_CMD`, `SRC_GREP` et `TEST_GREP` sont assignés en double quotes dans le template, un `$2` d'awk y serait expansé (`set -u` → crash). Pas de quote simple dans `ASSERT_PATTERN` (injecté entre quotes simples dans les hooks).
+   Mêmes contraintes que la commande fast (pas de `$(...)`, pas de `"`), et **pas de `$` non échappé** — `TEST_COUNT_CMD`, `SRC_GREP` et `TEST_GREP` sont assignés en double quotes dans le template, un `$2` d'awk y serait expansé (`set -u` → crash).
    Si activé : `.tripwire-testcount` est créé au premier check vert et doit
    être **committé** (comme `.tripwire-variant`) — baisser le ratchet = diff
    visible en review.
-8. **Chemins de test** — dérivés de la question 3 ou demandés : patterns
-   `case` (`{{TEST_PATH_PATTERNS}}`, ex. `*"/test/"*`), forme grep
-   (`{{TEST_GREP}}`, ex. `^test/`) et forme grep des sources
-   (`{{SRC_GREP}}`, ex. `^src/|^main/`). Vérifier que les chemins de test
-   sont AUSSI dans `{{WATCHED_PATH_PATTERNS}}` (sinon la garde
-   anti-affaiblissement ne voit jamais les fichiers de test).
+7. **Chemins de test et de source** — forme grep des tests (`{{TEST_GREP}}`,
+   ex. `^test/`) et des sources (`{{SRC_GREP}}`, ex. `^src/|^main/`) pour l'avis
+   « source sans test » de `check.sh`, ou « aucun » (avis inerte).
 
 ## Étape 3 — Génération
 
@@ -207,16 +230,16 @@ Templates dans `templates/` de cette skill. Remplacer les placeholders puis
 | `check.sh.tmpl` | `scripts/check.sh` | `+x` |
 | `pre-push.tmpl` | `scripts/hooks/pre-push` | `+x` |
 | `install-hooks.sh.tmpl` | `scripts/install-hooks.sh` | `+x` |
-| `cc_post_edit.sh.tmpl` | `scripts/hooks/cc_post_edit.sh` | `+x` |
 | `cc_stop.sh.tmpl` | `scripts/hooks/cc_stop.sh` | `+x` |
 | `cc_session_start.sh.tmpl` | `scripts/hooks/cc_session_start.sh` | `+x` |
 | `gitlab-ci.yml.tmpl` | `.gitlab-ci.yml` (si CI acceptée, forge gitlab, fichier absent) | — |
 | `github-actions.yml.tmpl` | `.github/workflows/tripwire.yml` (si CI acceptée, forge github, fichier absent) | — |
-| `tripwire.d/ratchet.sh.tmpl` | `scripts/tripwire.d/ratchet.sh` — **seulement si** ratchet demandé (question 7) | — |
+| `tripwire.d/ratchet.sh.tmpl` | `scripts/tripwire.d/ratchet.sh` — **seulement si** ratchet demandé (question 6) | — |
 | `tripwire.d/divergences.sh.tmpl` | `scripts/tripwire.d/divergences.sh` — **seulement si** le repo a des écarts déclarés | — |
 | `tripwire.d/contrat.sh.tmpl` | `scripts/tripwire.d/contrat.sh` — **seulement si** l'utilisateur veut un `COMPORTEMENTS.md` | — |
-| `settings.json.tmpl` | `.claude/settings.json` (**merge**, voir plus bas) | — |
-| `claude-md-section.md.tmpl` | section ajoutée au `CLAUDE.md` | — |
+| `settings.json.tmpl` | `.claude/settings.json` (**merge**, voir plus bas) — perso : `.claude/settings.local.json` | — |
+| `claude-md-section.md.tmpl` | section ajoutée au `CLAUDE.md` — perso : `CLAUDE.local.md` | — |
+| `perso-exclude.tmpl` | ajouté à `.git/info/exclude` — **mode perso seulement** | — |
 
 ### Briques : n'installer que ce qui est demandé
 
@@ -254,7 +277,7 @@ test manuel de la release, jamais vérifiée par le check), ou `[NON GARDÉ]`
 (compté dans `.tripwire-nongardes`, ratchet strict au pre-push).
 
 Une source modifiée sans test ni ligne au contrat déclenche un **avis** d'une
-ligne au post-edit — jamais un blocage. Une semaine de blocage au Stop sur un
+ligne dans la sortie de `check.sh` — jamais un blocage. Une semaine de blocage au Stop sur un
 vrai projet a produit 66 commits taxés d'une ligne et un tag `[smoke:]`
 grossier devenu l'échappatoire universelle : la question est utile, la
 contrainte ne l'était pas.
@@ -263,7 +286,7 @@ contrainte ne l'était pas.
 
 `TRIPWIRE_OFF=1` dans l'environnement (par session : `TRIPWIRE_OFF=1 claude`)
 ou un fichier `.tripwire-off` à la racine (par dépôt, ignoré par git) coupe les
-trois hooks Claude Code et le hook SessionStart du plugin — silence total, rien
+deux hooks Claude Code (Stop, SessionStart) et le hook SessionStart du plugin — silence total, rien
 désinstallé. Le pre-push git n'est pas concerné : il ne coûte aucun token et a
 son échappatoire (`--no-verify`). Ajouter `.tripwire-off` au `.gitignore` du
 projet au scaffold.
@@ -288,9 +311,10 @@ if [ -f .tripwire-divergences ]; then
 else
   echo "pas de fiche de divergences — normal si le repo n'a aucun écart assumé"
 fi
-# Hook PostToolUse : un chemin surveillé (doit durer ~ la commande fast) puis un non surveillé (retour immédiat)
-echo '{"tool_input":{"file_path":"'$PWD'/<chemin surveillé>/x"}}' | scripts/hooks/cc_post_edit.sh; echo "rc=$?"   # rc=0
-echo '{"tool_input":{"file_path":"'$PWD'/UNWATCHED.md"}}' | scripts/hooks/cc_post_edit.sh; echo "rc=$?"          # rc=0, immédiat
+# Stop : rc=0 sur vert
+echo '{}' | scripts/hooks/cc_stop.sh; echo "rc=$?"           # rc=0
+# Mode perso : rien ne doit apparaître
+git status --porcelain                                     # identique à avant le scaffold
 # SessionStart : rc=0 toujours ; installe core.hooksPath s'il manque
 echo '{}' | scripts/hooks/cc_session_start.sh; echo "rc=$?"   # rc=0
 ```

@@ -11,8 +11,8 @@ Extracted from the KaSe_firmware project's workflow.
 > Every guard (git hook, platform hook, CI) merely calls it
 > with a mode that fits its time budget.
 
-- `check.sh --fast` — short loop (< 30 s), runs after every watched edit and at
-  every Stop
+- `check.sh --fast` — short loop (< 30 s), runs at Stop when the repo state
+  moved, and whenever the agent runs its own tests
 - `check.sh --variant <name>` — fast + one variant build
 - `check.sh` — full: fast + all variants (pre-push, CI)
 
@@ -23,11 +23,14 @@ repeat forever stops being a guardrail. It becomes reassurance. Six rules,
 each learned the hard way, keep tripwire from drifting there.
 
 **A severity ladder, not one alarm.** During work → inform. At the conclusion →
-block. At push → block. The `PostToolUse` hook reports a red without
-interrupting, because the TDD norm requires writing the failing assertion
-*first*: a blocking alarm there would ring on every correct step, and an alarm
-that always rings gets ignored. `Stop` and `pre-push` block — you don't conclude
-a turn, or push, on red.
+block. At push → block. There is no per-edit hook any more (v0.17.0): current
+agents run their tests themselves while they work, and the hook injected 200 to
+400 advisories per repo into the context for nothing. `Stop` and `pre-push`
+block — you don't conclude a turn, or push, on red. But a given red blocks
+`Stop` **once**: agents end a turn every time they wait on a subagent or a
+background task (1527 Stops in a single session on one repo), and replaying the
+same red teaches them nothing. Same state as the last red → nothing re-run,
+the turn ends; the push still refuses it.
 
 **An absent tool is not a regression.** Any fast or full command that depends on
 an external toolchain guards itself with `command -v` and degrades to an
@@ -60,28 +63,27 @@ each tagged by what guards it: `[test:X]` (X exists in a test file — the only
 guard `check.sh` verifies: red if X vanishes), `[smoke:X]` (a note for the
 manual smoke test at release), or `[NON GARDÉ]` — the admission, counted and
 ratcheted. A source edited without a test or a contract line gets a one-line
-advisory. Not a block: a week of blocking at Stop on a real project taxed 66
+advisory in `check.sh`'s output. Not a block: a week of blocking at Stop on a real project taxed 66
 commits with a contract line and turned a coarse `[smoke:]` tag into the
 universal escape. The question is useful; the constraint was not.
 
 **You can disengage it.** `TRIPWIRE_OFF=1` in the environment (per session) or
 a `.tripwire-off` file at the root (per repo, gitignored) silences every Claude
-Code hook and the plugin's own — nothing uninstalled. Hooks cost tokens on
-every edit and every turn; a guardrail you cannot switch off gets worked around
+Code hook and the plugin's own — nothing uninstalled. Hooks cost time and
+tokens on every turn; a guardrail you cannot switch off gets worked around
 instead. The git `pre-push` stays; `--no-verify` is its escape.
 
 ## Large projects
 
-The "fast < 30 s on every edit" contract holds on large repos too, thanks to
+The "fast < 30 s" contract holds on large repos too, thanks to
 four mechanisms in the generated `check.sh` — and everything optional (test ratchet, declared divergences, behavior contract) lives in `scripts/tripwire.d/` as a brick, installed only if you ask for it and removed with `rm`:
 
 - **Skip-if-already-green**: a fingerprint of the repo state (HEAD + diff +
   untracked files) is stored per mode in `.git/tripwire/`; if nothing moved
   since the last green run, the check exits immediately. `--force` or
   `TRIPWIRE_FORCE=1` to override (e.g. after a toolchain update).
-- **Lock + debounce**: `flock` prevents concurrent checks (the second one
-  exits politely); post-edit hooks won't re-check within `TRIPWIRE_DEBOUNCE`
-  seconds of the previous run (default 10).
+- **Lock**: `flock` prevents concurrent checks (the second one exits
+  politely).
 - **Budget guard**: if the fast phase drifts past `TRIPWIRE_FAST_BUDGET`
   seconds (default 30), check.sh says so — the tripwire watches its own
   contract.
@@ -95,16 +97,13 @@ default branch + nightly) and tunes the Stop hook timeout for long builds.
 
 ## Test quality
 
-Green does not mean protected — three guards take care of that:
+Green does not mean protected — two guards take care of that:
 
 - **Test ratchet**: the number of tests (counted by `TEST_COUNT_CMD`) never
   silently decreases. The reference lives in `.tripwire-testcount`,
   **committed**: lowering the ratchet requires a visible diff line in review.
   A decrease → warning locally, **red at pre-push**.
-- **Anti-weakening guard**: an edit that removes assertions from a test file
-  (vs HEAD) injects a warning into the agent's context — legitimate refactor
-  or cheating, it has to take a stance.
-- **TDD advisory**: watched source modified without any test modified → one
+- **TDD advisory**: source modified without any test modified → one
   advisory line with the check's verdict.
 
 And for what mechanics cannot see: `/tripwire:test-review` audits semantic
@@ -188,10 +187,10 @@ claude plugin install tripwire@tripwire
 
 | Skill | Usage |
 |---|---|
-| `/tripwire:init` | Scaffolds check.sh (skip-if-green, lock, budget guard, test ratchet, declared-divergence assertion), git hooks, Claude Code hooks (PostToolUse advisory / Stop and pre-push blocking, SessionStart), optional staged CI, CLAUDE.md config section. **Re-run on an equipped project**: detects outdated scaffolds via the `# tripwire-template:` stamp and proposes a targeted update without touching your commands |
+| `/tripwire:init` | Scaffolds check.sh (skip-if-green, lock, budget guard, test ratchet, declared-divergence assertion), git hooks, Claude Code hooks (Stop and pre-push blocking, SessionStart); **personal mode** for a shared repo — nothing committed, nothing imposed on the others, optional staged CI, CLAUDE.md config section. **Re-run on an equipped project**: detects outdated scaffolds via the `# tripwire-template:` stamp and proposes a targeted update without touching your commands |
 | `/tripwire:gen-agents` | Generates up to 5 project-specialized agents: test-author / code-reviewer / debugger / maintainer / security-auditor (the last two with persistent cross-session memory; judgment agents pinned to `model: sonnet`) |
 | `/tripwire:release` | Release workflow: git tag = version, semver bump proposed from commits, green check mandatory, version-manifest sync, glab/gh release |
-| `/tripwire:status` | One-shot diagnosis: scaffold up to date? hooks active? last green/red? **fast-phase fitness** — persistent overrun, sudden jump, never green, fast identical to full — each with a concrete action; watched-path blind spots. `--fleet` mode: a table of all equipped repos |
+| `/tripwire:status` | One-shot diagnosis: scaffold up to date? hooks active? last green/red? **fast-phase fitness** — persistent overrun, sudden jump, never green, fast identical to full — each with a concrete action. `--fleet` mode: a table of all equipped repos |
 | `/tripwire:bisect` | Finds the commit that broke the check: `git bisect run` with check.sh as the oracle |
 | `/tripwire:test-review` | Semantic test audit: hollow assertions, happy-path-only, mock-testing, coupling, parallel-safety, lying names — findings + patches. Large-scope protocol: economical extractors (cited) + one strong judge |
 
@@ -213,7 +212,7 @@ would itself need propagating — and the fleet rots while you wait.
 After `claude plugin update tripwire@tripwire`, re-run `/tripwire:init` in the
 project: the skill compares the stamp to the plugin version, announces what
 changed, and updates the scaffolded files while preserving your fast/build
-commands, variants and watched paths.
+commands and variants.
 
 The `SessionStart` hook also installs the git hooks automatically on every
 fresh clone — no need to remember `./scripts/install-hooks.sh`.

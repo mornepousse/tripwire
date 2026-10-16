@@ -5,7 +5,6 @@ set -uo pipefail
 PLUGIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-export TRIPWIRE_DEBOUNCE=0   # les tests enchaînent les hooks plus vite que le debounce réel
 export TRIPWIRE_RATCHET_STRICT=0   # un pre-push parent ne doit pas rendre les toys stricts
 cd "$TMP"
 git init -q -b main
@@ -33,10 +32,6 @@ cp "$PLUGIN/skills/init/templates/tripwire.d/contrat.sh.tmpl" scripts/tripwire.d
 sed -e 's|{{PROJECT_NAME}}|toy|g' -e '/{{ENV_SETUP_BLOCK}}/d' \
     "$PLUGIN/skills/init/templates/pre-push.tmpl" > scripts/hooks/pre-push
 cp "$PLUGIN/skills/init/templates/install-hooks.sh.tmpl" scripts/install-hooks.sh
-sed -e 's|{{WATCHED_PATH_PATTERNS}}|*"/src/"*\|*"/test/"*|g' \
-    -e 's|{{TEST_PATH_PATTERNS}}|*"/test/"*|g' \
-    -e 's|{{ASSERT_PATTERN}}|assert|g' \
-    "$PLUGIN/skills/init/templates/cc_post_edit.sh.tmpl" > scripts/hooks/cc_post_edit.sh
 # Stop : garde-fou --fast pur, plus aucun placeholder (build complet = pre-push)
 cp "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" scripts/hooks/cc_stop.sh
 chmod +x scripts/check.sh scripts/hooks/* scripts/install-hooks.sh
@@ -63,16 +58,18 @@ for a in test-author code-reviewer debugger maintainer security-auditor; do
   fi
 done
 
-# Vert : fast, full, stop hook, post-edit (fichier surveillé + non surveillé)
+# Vert : fast, full, stop hook
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast vert" 0 $?
 ./scripts/check.sh >/dev/null 2>&1;                    chk "full vert" 0 $?
 scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop hook vert" 0 $?
 ! grep 'scripts/check.sh' scripts/hooks/cc_stop.sh | grep -qv -- '--fast'
 chk "cc stop: tout appel check.sh est en --fast (e2e complet = pre-push)" 0 $?
-echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
-chk "post-edit surveillé vert" 0 $?
-echo '{"tool_input":{"file_path":"'"$TMP"'/README.md"}}' | scripts/hooks/cc_post_edit.sh >/dev/null 2>&1
-chk "post-edit non surveillé ignoré" 0 $?
+# Plus de hook par édition (v0.17.0) : les agents lancent leurs tests eux-mêmes,
+# et ce hook injectait 200 à 400 avis par dépôt dans le contexte, pour rien.
+[ ! -e "$PLUGIN/skills/init/templates/cc_post_edit.sh.tmpl" ]
+chk "plus de template post-édition" 0 $?
+grep -q 'PostToolUse' "$PLUGIN/skills/init/templates/settings.json.tmpl"
+chk "settings scaffoldé : plus d'entrée PostToolUse" 1 $?
 
 # install-hooks
 ./scripts/install-hooks.sh >/dev/null 2>&1
@@ -92,14 +89,11 @@ chk "session-start idempotent (rc)" 0 $rc
 chk "session-start idempotent (silencieux)" "" "$OUT"
 
 # ===== Débrayage : TRIPWIRE_OFF=1 ou un fichier .tripwire-off coupe les hooks =====
-# Les hooks Claude Code coûtent des tokens à chaque édition et à chaque fin de
+# Les hooks Claude Code coûtent des tokens et du temps à chaque fin de
 # tour. On doit pouvoir les couper d'un geste, par session (env) ou par dépôt
 # (fichier, non suivi), sans rien désinstaller. Le pre-push git n'est pas
 # concerné : il ne coûte rien à l'agent et a déjà son échappatoire (--no-verify).
 printf '#!/usr/bin/env bash\necho BOOM\nexit 1\n' > fast.sh              # rouge en dessous
-OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_OFF=1 scripts/hooks/cc_post_edit.sh 2>&1)"
-chk "débrayage env: post-edit rc 0" 0 $?
-chk "débrayage env: post-edit silencieux" "" "$OUT"
 OUT="$(TRIPWIRE_OFF=1 scripts/hooks/cc_stop.sh </dev/null 2>&1)"
 chk "débrayage env: stop rc 0 même sur rouge" 0 $?
 chk "débrayage env: stop silencieux" "" "$OUT"
@@ -107,8 +101,6 @@ OUT="$(echo '{}' | TRIPWIRE_OFF=1 scripts/hooks/cc_session_start.sh 2>&1)"
 chk "débrayage env: session-start silencieux" "" "$OUT"
 touch .tripwire-off
 scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1; chk "débrayage fichier: stop rc 0 même sur rouge" 0 $?
-OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh 2>&1)"
-chk "débrayage fichier: post-edit silencieux" "" "$OUT"
 OUT="$(cd "$TMP" && CLAUDE_PLUGIN_ROOT="$PLUGIN" bash "$PLUGIN/hooks/session_start.sh" </dev/null 2>&1)"
 chk "débrayage fichier: hook plugin silencieux" "" "$OUT"
 rm -f .tripwire-off
@@ -330,15 +322,15 @@ chmod 644 .tripwire-divergences
 printf 'scripts/check.sh\tALL_VARIANTS[@]\tpreuve que le motif est compare en chaine litterale\n' > .tripwire-divergences
 ./scripts/check.sh --fast --force >/dev/null 2>&1
 chk "divergences: motif littéral (-F) -> vert" 0 $?
-printf 'scripts/hooks/cc_post_edit.sh\t*"/test/"*\tchemins de test surveilles par la garde anti-affaiblissement\n' > .tripwire-divergences
+printf 'scripts/install-hooks.sh\tcore.hooksPath\tle pre-push passe par scripts/hooks\n' > .tripwire-divergences
 ./scripts/check.sh --fast --force >/dev/null 2>&1
-chk "divergences: motif présent (post-edit) -> vert" 0 $?
-cp scripts/hooks/cc_post_edit.sh "$TMP/pe.bak"
-printf '#!/usr/bin/env bash\nexit 0\n' > scripts/hooks/cc_post_edit.sh   # rejoue l'écrasement du 2026-08-05
+chk "divergences: motif présent (install-hooks) -> vert" 0 $?
+cp scripts/install-hooks.sh "$TMP/ih.bak"
+printf '#!/usr/bin/env bash\nexit 0\n' > scripts/install-hooks.sh   # rejoue l'écrasement du 2026-08-05
 scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1
 chk "divergences: hook Stop mord sur divergence perdue -> rc 2" 2 $?
-cp "$TMP/pe.bak" scripts/hooks/cc_post_edit.sh && chmod +x scripts/hooks/cc_post_edit.sh
-rm -f .tripwire-divergences "$TMP/cc_stop.bak" "$TMP/pe.bak"   # le repo jouet repart propre
+cp "$TMP/ih.bak" scripts/install-hooks.sh && chmod +x scripts/install-hooks.sh
+rm -f .tripwire-divergences "$TMP/cc_stop.bak" "$TMP/ih.bak"   # le repo jouet repart propre
 
 # ===== Ratchet de tests =====
 echo 5 > ntests.txt
@@ -361,18 +353,9 @@ scripts/hooks/pre-push </dev/null >/dev/null 2>&1   # même état : le strict ne
 chk "ratchet: strict ne réutilise pas un stamp non-strict" 1 $?
 echo 7 > ntests.txt   # remettre compte == référence (sections suivantes propres)
 
-# ===== Garde anti-affaiblissement des tests =====
 mkdir -p test
 printf 'assert(a);\nassert(b);\nassert(c);\n' > test/t.c
 git add -A >/dev/null 2>&1 && GITC commit -qm "c6 tests baseline"
-printf 'assert(a);\n' > test/t.c            # 3 -> 1 : perte nette de 2
-OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/test/t.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"; rc=$?
-chk "garde assertions: rc 0 (non bloquant)" 0 $rc
-echo "$OUT" | grep -q "assertion(s) en moins"; chk "garde assertions: contexte émis" 0 $?
-printf 'assert(a);\nassert(b);\nassert(c);\nassert(d);\n' > test/t.c   # 3 -> 4 : gain
-OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/test/t.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
-echo "$OUT" | grep -q "assertion"; chk "garde assertions: gain -> silencieux" 1 $?
-git checkout -q -- test/t.c
 
 # ===== Contrat de comportements =====
 # COMPORTEMENTS.md : chaque comportement est tagué par ce qui le garde —
@@ -412,11 +395,6 @@ printf -- '- [NON GARDÉ] a\n' > COMPORTEMENTS.md
 chk "nongardes: référence abaissée" "1" "$(cat .tripwire-nongardes 2>/dev/null)"
 # La question forcée : pendant -> question, à la conclusion -> blocage
 git add -A >/dev/null 2>&1 && GITC commit -qm "c7 contrat"
-OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
-echo "$OUT" | grep -q "COMPORTEMENTS"; chk "question: post-edit source -> question émise (même sur vert)" 0 $?
-[ "${#OUT}" -lt 260 ]; chk "question: post-edit -> une ligne courte (< 260 octets, tokens)" 0 $?
-OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/test/t.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
-echo "$OUT" | grep -q "COMPORTEMENTS"; chk "question: post-edit test -> pas de question" 1 $?
 echo mod >> src/f2                                    # source modifiée, ni test ni contrat
 OUT="$(./scripts/check.sh --fast --force 2>&1)"; chk "question: sans réponse -> vert (avis, jamais rouge)" 0 $?
 echo "$OUT" | grep -q "COMPORTEMENTS"; chk "question: sans réponse -> avis émis" 0 $?
@@ -445,23 +423,21 @@ grep -q 'BOOM' .git/tripwire/last-fail.log; chk "last-fail: sortie capturée" 0 
 OUT="$(./scripts/check.sh --fast 2>&1)"
 echo "$OUT" | grep -q "last-fail.log"; chk "message d'échec pointe le log" 0 $?
 scripts/hooks/pre-push </dev/null >/dev/null 2>&1;     chk "pre-push bloque" 1 $?
-# Échelle de gravité : pendant -> informe, à la conclusion -> bloque, au push -> bloque.
-# Le hook par édition ne bloque plus : la norme TDD impose un rouge avant
-# l'implémentation, un blocage à ce moment-là serait une alarme garantie.
-OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
-chk "post-edit rouge -> rc 0 (avis, pas blocage)" 0 $?
-echo "$OUT" | grep -q "ROUGE"; chk "post-edit rouge: avis émis en contexte" 0 $?
-echo "$OUT" | grep -q "last-fail.log"; chk "post-edit rouge: avis pointe le log" 0 $?
+# À la conclusion -> bloque.
 scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop rouge -> rc 2 (bloque)" 2 $?
-
-# Debounce : sous la fenêtre -> pas de re-check. Le discriminant est l'avis
-# émis, plus le code de retour (qui vaut 0 dans les deux cas désormais).
-OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_DEBOUNCE=999 scripts/hooks/cc_post_edit.sh 2>/dev/null)"
-echo "$OUT" | grep -q "ROUGE"; chk "debounce: 1er passage seed (check réel, avis émis)" 0 $?
-OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | TRIPWIRE_DEBOUNCE=999 scripts/hooks/cc_post_edit.sh 2>/dev/null)"
-chk "debounce: 2e passage sous la fenêtre -> silencieux" "" "$OUT"
-OUT="$(echo '{"tool_input":{"file_path":"'"$TMP"'/src/a.c"}}' | scripts/hooks/cc_post_edit.sh 2>/dev/null)"
-echo "$OUT" | grep -q "ROUGE"; chk "debounce: désactivé (0) -> check réel, avis émis" 0 $?
+# Un rouge donné ne bloque qu'une fois (v0.17.0). Les agents finissent un tour
+# chaque fois qu'ils attendent un subagent ou une tâche de fond : 1527 Stop dans
+# une seule session de BDM64. Même état rouge qu'au dernier Stop -> l'agent le
+# sait déjà, on ne relance pas le check et on ne re-bloque pas. Le pre-push reste.
+H0="$(wc -l < .git/tripwire/history.tsv)"
+OUT="$(scripts/hooks/cc_stop.sh </dev/null 2>&1)";     chk "stop: même rouge déjà signalé -> rc 0" 0 $?
+chk "stop: même rouge déjà signalé -> check pas relancé" "$H0" "$(wc -l < .git/tripwire/history.tsv)"
+chk "stop: même rouge déjà signalé -> silencieux" "" "$OUT"
+./scripts/check.sh --fast >/dev/null 2>&1;             chk "check direct: le même rouge reste rouge" 1 $?
+echo mod >> src/f2                                    # l'état bouge, toujours rouge
+scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop: rouge sur un nouvel état -> rc 2" 2 $?
+git checkout -q -- src/f2
+scripts/hooks/pre-push </dev/null >/dev/null 2>&1;     chk "pre-push: le rouge déjà signalé bloque toujours" 1 $?
 
 # Rouge : fast vert mais build cassé -> full rouge, fast vert
 printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh
@@ -469,6 +445,38 @@ printf '#!/usr/bin/env bash\nexit 1\n' > build.sh
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast vert (build cassé)" 0 $?
 [ -f .git/tripwire/last-fail.log ]; chk "log conservé après un vert" 0 $?
 ./scripts/check.sh >/dev/null 2>&1;                    chk "full rouge (build cassé)" 1 $?
+
+# ===== Mode perso : un dépôt partagé ne reçoit rien =====
+# apex-sdk a d'autres contributeurs : tripwire y tourne pour une seule personne.
+# Tout ce que le scaffold écrit est listé dans .git/info/exclude (jamais
+# committé, jamais poussé) ; un fichier oublié par la liste sortirait dans
+# git status, donc dans le prochain commit d'un collègue.
+PERSO="$TMP/perso"; mkdir -p "$PERSO" && cd "$PERSO" && git init -q -b main
+echo projet > README.md && git add README.md && GITC commit -qm "c0 projet d'équipe"
+cat "$PLUGIN/skills/init/templates/perso-exclude.tmpl" >> .git/info/exclude
+mkdir -p scripts/hooks scripts/tripwire.d .claude
+printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/perso-fast.sh"; chmod +x "$TMP/perso-fast.sh"
+sed -e 's|{{PROJECT_NAME}}|perso|g' -e 's|{{TRIPWIRE_VERSION}}|v9.9.9|g' \
+    -e 's|{{VARIANTS_SPACE_SEPARATED}}||g' -e "s|{{FAST_CMD}}|$TMP/perso-fast.sh|g" \
+    -e "s|{{VARIANT_BUILD_CMD}}|$TMP/perso-fast.sh|g" -e 's|{{SRC_GREP}}||g' -e 's|{{TEST_GREP}}||g' \
+    "$PLUGIN/skills/init/templates/check.sh.tmpl" > scripts/check.sh
+sed -e 's|{{TEST_COUNT_CMD}}|echo 3|g' "$PLUGIN/skills/init/templates/tripwire.d/ratchet.sh.tmpl" > scripts/tripwire.d/ratchet.sh
+sed -e 's|{{PROJECT_NAME}}|perso|g' -e '/{{ENV_SETUP_BLOCK}}/d' "$PLUGIN/skills/init/templates/pre-push.tmpl" > scripts/hooks/pre-push
+cp "$PLUGIN/skills/init/templates/cc_stop.sh.tmpl" scripts/hooks/cc_stop.sh
+sed -e '/{{SESSION_VARIANT_LINE}}/d' "$PLUGIN/skills/init/templates/cc_session_start.sh.tmpl" > scripts/hooks/cc_session_start.sh
+cp "$PLUGIN/skills/init/templates/install-hooks.sh.tmpl" scripts/install-hooks.sh
+cp "$PLUGIN/skills/init/templates/settings.json.tmpl" .claude/settings.local.json
+sed -e 's|{{PROJECT_NAME}}|perso|g' "$PLUGIN/skills/init/templates/claude-md-section.md.tmpl" > CLAUDE.local.md
+printf -- '- [NON GARDÉ] a\n' > COMPORTEMENTS.md
+touch .tripwire-off .tripwire-variant .tripwire-divergences && rm .tripwire-off
+chmod +x scripts/check.sh scripts/hooks/* scripts/install-hooks.sh
+./scripts/install-hooks.sh >/dev/null 2>&1
+./scripts/check.sh >/dev/null 2>&1;                    chk "perso: check complet vert" 0 $?
+[ -f .tripwire-testcount ];                            chk "perso: le ratchet a bien écrit sa référence" 0 $?
+chk "perso: git status vide — rien ne part chez les autres" "" "$(git status --porcelain)"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$TMP/perso-fast.sh"
+scripts/hooks/pre-push </dev/null >/dev/null 2>&1;     chk "perso: le pre-push local bloque un rouge" 1 $?
+cd "$TMP"
 
 # ===== Multi-variantes =====
 MULTI="$TMP/multi"
