@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tripwire-template: v0.16.0
+# tripwire-template: v0.17.0
 # Tripwire anti-régression tripwire — source unique de vérité du « quoi vérifier ».
 # Généré par /tripwire:init. Les hooks ne font qu'appeler ce script.
 #   check.sh            -> full : phase rapide + toutes les variantes (pre-push, CI)
