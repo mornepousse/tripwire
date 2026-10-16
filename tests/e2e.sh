@@ -62,7 +62,7 @@ done
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "fast vert" 0 $?
 ./scripts/check.sh >/dev/null 2>&1;                    chk "full vert" 0 $?
 scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop hook vert" 0 $?
-! grep 'scripts/check.sh' scripts/hooks/cc_stop.sh | grep -qv -- '--fast'
+! grep '"$REPO/scripts/check.sh"' scripts/hooks/cc_stop.sh | grep -qv -- '--fast'
 chk "cc stop: tout appel check.sh est en --fast (e2e complet = pre-push)" 0 $?
 # Plus de hook par édition (v0.17.0) : les agents lancent leurs tests eux-mêmes,
 # et ce hook injectait 200 à 400 avis par dépôt dans le contexte, pour rien.
@@ -429,15 +429,28 @@ scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop rouge -> rc 2 (
 # chaque fois qu'ils attendent un subagent ou une tâche de fond : 1527 Stop dans
 # une seule session de BDM64. Même état rouge qu'au dernier Stop -> l'agent le
 # sait déjà, on ne relance pas le check et on ne re-bloque pas. Le pre-push reste.
+# La mémoire est par session : une autre session (ou celle du lendemain) n'a
+# jamais vu ce rouge, elle doit être bloquée à son tour.
+SA='{"session_id":"A"}'; SB='{"session_id":"B"}'
+echo "$SA" | scripts/hooks/cc_stop.sh >/dev/null 2>&1; chk "stop: session A, rouge -> rc 2" 2 $?
 H0="$(wc -l < .git/tripwire/history.tsv)"
-OUT="$(scripts/hooks/cc_stop.sh </dev/null 2>&1)";     chk "stop: même rouge déjà signalé -> rc 0" 0 $?
+OUT="$(echo "$SA" | scripts/hooks/cc_stop.sh 2>&1)";   chk "stop: même rouge déjà signalé à A -> rc 0" 0 $?
 chk "stop: même rouge déjà signalé -> check pas relancé" "$H0" "$(wc -l < .git/tripwire/history.tsv)"
 chk "stop: même rouge déjà signalé -> silencieux" "" "$OUT"
+echo "$SA" | TRIPWIRE_FORCE=1 scripts/hooks/cc_stop.sh >/dev/null 2>&1; chk "stop: TRIPWIRE_FORCE=1 relance -> rc 2" 2 $?
+echo "$SB" | scripts/hooks/cc_stop.sh >/dev/null 2>&1; chk "stop: session B n'a pas vu ce rouge -> rc 2" 2 $?
 ./scripts/check.sh --fast >/dev/null 2>&1;             chk "check direct: le même rouge reste rouge" 1 $?
 echo mod >> src/f2                                    # l'état bouge, toujours rouge
-scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "stop: rouge sur un nouvel état -> rc 2" 2 $?
+echo "$SA" | scripts/hooks/cc_stop.sh >/dev/null 2>&1; chk "stop: rouge sur un nouvel état -> rc 2" 2 $?
 git checkout -q -- src/f2
-scripts/hooks/pre-push </dev/null >/dev/null 2>&1;     chk "pre-push: le rouge déjà signalé bloque toujours" 1 $?
+# Rouge X -> vert Y -> retour au rouge X : le vert efface la mémoire du rouge.
+cp fast.sh "$TMP/fast.red"; printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/fast.green"
+echo "$SA" | scripts/hooks/cc_stop.sh >/dev/null 2>&1  # X déjà signalé
+cp "$TMP/fast.green" fast.sh; echo y >> src/f2
+echo "$SA" | scripts/hooks/cc_stop.sh >/dev/null 2>&1; chk "stop: état Y vert -> rc 0" 0 $?
+cp "$TMP/fast.red" fast.sh; git checkout -q -- src/f2
+echo "$SA" | scripts/hooks/cc_stop.sh >/dev/null 2>&1; chk "stop: retour au rouge X après un vert -> rc 2" 2 $?
+rm -f "$TMP/fast.red" "$TMP/fast.green"
 
 # Rouge : fast vert mais build cassé -> full rouge, fast vert
 printf '#!/usr/bin/env bash\nexit 0\n' > fast.sh
@@ -474,8 +487,29 @@ chmod +x scripts/check.sh scripts/hooks/* scripts/install-hooks.sh
 ./scripts/check.sh >/dev/null 2>&1;                    chk "perso: check complet vert" 0 $?
 [ -f .tripwire-testcount ];                            chk "perso: le ratchet a bien écrit sa référence" 0 $?
 chk "perso: git status vide — rien ne part chez les autres" "" "$(git status --porcelain)"
+# Les fichiers tripwire sont exclus de git, donc de git diff : l'empreinte doit
+# les lire quand même, sinon un contrat cassé passe en « déjà vert — skip ».
+cp "$PLUGIN/skills/init/templates/tripwire.d/contrat.sh.tmpl" scripts/tripwire.d/contrat.sh
+./scripts/check.sh --fast >/dev/null 2>&1
+printf -- '- [test:JE_NEXISTE_PAS] garde perdue\n' > COMPORTEMENTS.md
+./scripts/check.sh --fast >/dev/null 2>&1;             chk "perso: fichier exclu modifié -> pas de faux « déjà vert »" 1 $?
+rm scripts/tripwire.d/contrat.sh; printf -- '- [NON GARDÉ] a\n' > COMPORTEMENTS.md
 printf '#!/usr/bin/env bash\nexit 1\n' > "$TMP/perso-fast.sh"
 scripts/hooks/pre-push </dev/null >/dev/null 2>&1;     chk "perso: le pre-push local bloque un rouge" 1 $?
+# SessionStart ne pose core.hooksPath que s'il ne court-circuite rien : des hooks
+# d'équipe dans .git/hooks, ou un core.hooksPath déjà choisi, restent maîtres.
+git config --unset core.hooksPath
+printf '#!/bin/sh\nexit 0\n' > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+OUT="$(echo '{}' | scripts/hooks/cc_session_start.sh 2>/dev/null)"
+chk "session-start: hooks d'équipe dans .git/hooks -> core.hooksPath pas posé" "" "$(git config --get core.hooksPath)"
+echo "$OUT" | grep -q "pre-push tripwire inactif"; chk "session-start: court-circuit évité -> signalé" 0 $?
+rm .git/hooks/pre-commit; git config core.hooksPath .githooks
+echo '{}' | scripts/hooks/cc_session_start.sh >/dev/null 2>&1
+chk "session-start: core.hooksPath de l'équipe pas écrasé" ".githooks" "$(git config --get core.hooksPath)"
+mkdir -p .githooks && printf '#!/bin/sh\n./scripts/check.sh\n' > .githooks/pre-push
+OUT="$(echo '{}' | scripts/hooks/cc_session_start.sh 2>/dev/null)"
+chk "session-start: check.sh déjà appelé par le pre-push de l'équipe -> silencieux" "" "$OUT"
+rm -rf .githooks; git config --unset core.hooksPath
 cd "$TMP"
 
 # ===== Multi-variantes =====
@@ -521,7 +555,7 @@ if grep -Fn '{{' scripts/ >/dev/null 2>&1; then echo "✗ placeholders résiduel
 ./scripts/check.sh >/dev/null 2>&1;                    chk "multi full vert" 0 $?
 ./scripts/check.sh --variant v1 >/dev/null 2>&1;       chk "multi --variant v1 vert" 0 $?
 scripts/hooks/cc_stop.sh </dev/null >/dev/null 2>&1;   chk "multi stop hook (--fast) vert" 0 $?
-! grep 'scripts/check.sh' scripts/hooks/cc_stop.sh | grep -qv -- '--fast'
+! grep '"$REPO/scripts/check.sh"' scripts/hooks/cc_stop.sh | grep -qv -- '--fast'
 chk "multi stop: tout appel check.sh est en --fast" 0 $?
 
 # v2 cassé : full rouge mais TOUTES les variantes tentées ; v1 isolé reste vert

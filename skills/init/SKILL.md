@@ -104,7 +104,7 @@ mise à jour :
 | v0.14.0 | **contrat de comportements** — check.sh : `check_comportements()` (`COMPORTEMENTS.md` : `[test:X]`, `[smoke:X]`, `[NON GARDÉ]` ratcheté dans `.tripwire-nongardes`), valeur `SMOKE_DOC`, la question forcée (source modifiée sans test ni contrat → avis, rouge si `TRIPWIRE_CONTRAT_STRICT=1`) ; hooks : `cc_post_edit.sh` pose la question sur toute source (même sur vert — l'avis TDD, lui, n'arrivait jamais jusqu'à l'agent), `cc_stop.sh` et `pre-push` exportent le strict. CRLF : `$'\r'` en séquence d'échappement, plus d'octet nu. Re-scaffold : `check.sh`, les trois hooks, section CLAUDE.md, + poser la question 10 |
 | v0.15.0 | **débrayage** : `TRIPWIRE_OFF=1` ou `.tripwire-off` coupe les hooks Claude Code (post-edit, Stop, SessionStart) et le hook du plugin. **Contrat allégé** : la question n'est plus qu'un avis d'une ligne au post-edit (le Stop ne bloque plus, `TRIPWIRE_CONTRAT_STRICT` disparaît), `[smoke:X]` n'est plus vérifié (note de release), `SMOKE_DOC` et la question 10 disparaissent. Re-scaffold : `check.sh`, les trois hooks, section CLAUDE.md, `.gitignore` |
 | v0.16.0 | **allégé** — section CLAUDE.md scaffoldée : 64 → 12 lignes (600-780 tokens de moins par session) ; scoping monorepo retiré (`MODULE_FAST`, `--changed`, question d'init : zéro utilisateur en trois mois) ; noyau + briques : `check.sh` ne porte plus que le noyau et source `scripts/tripwire.d/*.sh` (ratchet, divergences, contrat — installées seulement si demandées, retirées par `rm`). Re-scaffold : `check.sh`, `cc_post_edit.sh`, section CLAUDE.md ; découpage du monolithe en briques (voir Étape 0) |
-| v0.17.0 | **adapté aux agents actuels** — mesuré sur les transcripts : le Stop se déclenchait à chaque fin de tour (1527 fois dans une session de BDM64, 3 h d'attente cumulée sur nixos-config) et le hook par édition injectait 200 à 400 avis par dépôt. **`cc_post_edit.sh` supprimé** (avec debounce, garde anti-affaiblissement et question du contrat au post-edit — le ratchet du pre-push garde la perte nette d'assertions) ; **Stop** : un rouge donné ne bloque qu'une fois (`TRIPWIRE_RED_ONCE`, rc 3 = déjà signalé, rien relancé) ; **mode perso** pour un dépôt partagé (`perso-exclude.tmpl`, `settings.local.json`, `CLAUDE.local.md`). Re-scaffold : `check.sh`, `cc_stop.sh`, suppression de `cc_post_edit.sh` et de son entrée `settings.json`, section CLAUDE.md (voir Étape 0) |
+| v0.17.0 | **adapté aux agents actuels** — mesuré sur les transcripts : le Stop se déclenchait à chaque fin de tour (1527 fois dans une session de BDM64, 3 h d'attente cumulée sur nixos-config) et le hook par édition injectait 200 à 400 avis par dépôt. **`cc_post_edit.sh` supprimé** (avec debounce, garde anti-affaiblissement et question du contrat au post-edit — le ratchet du pre-push garde la perte nette d'assertions) ; **Stop** : un rouge donné ne bloque qu'une fois **par session** (mémoire `stop-red` = session + empreinte, effacée au vert, `TRIPWIRE_FORCE=1` relance) — autonome, marche avec n'importe quelle version de `check.sh` ; **SessionStart** : ne pose plus `core.hooksPath` par-dessus des hooks existants ; **mode perso** pour un dépôt partagé (`perso-exclude.tmpl`, `settings.local.json`, `CLAUDE.local.md`) ; check.sh : l'empreinte lit les fichiers tripwire même exclus de git. Re-scaffold : `cc_stop.sh`, `cc_session_start.sh`, suppression de `cc_post_edit.sh` et de son entrée `settings.json`, section CLAUDE.md — sur ces fichiers, **valable par-dessus tout scaffold depuis v0.10** ; `check.sh` (ligne d'empreinte) au prochain re-scaffold complet |
 
 ### Cohabitation avec l'outillage tiers (pre-commit, TDD Guard…)
 
@@ -134,11 +134,17 @@ En **perso**, mêmes templates, quatre différences :
 - hooks Claude Code dans `.claude/settings.local.json` (pas `settings.json`) ;
 - section de doc dans `CLAUDE.local.md` (le `CLAUDE.md` de l'équipe n'est pas
   touché) ;
-- pas de CI, et `.tripwire-testcount` reste local.
+- pas de CI, pas de modification du `.gitignore`, et `.tripwire-testcount`
+  reste local. Agents générés par `/tripwire:gen-agents` : ajouter chacun de
+  leurs fichiers à `.git/info/exclude`.
+L'empreinte du skip-si-déjà-vert lit `scripts/check.sh`, les briques,
+`COMPORTEMENTS.md` et `.tripwire-divergences` même exclus de git.
 Si le dépôt a déjà des hooks dans `.git/hooks/` (hors `*.sample`),
 `core.hooksPath` les court-circuiterait : appliquer la règle de cohabitation
-(insérer l'appel à `check.sh` dans le hook existant) au lieu de poser
-`core.hooksPath`. Validation en plus : `git status --porcelain` doit rester
+(insérer l'appel à `check.sh` dans le `pre-push` existant) au lieu de poser
+`core.hooksPath`. Le hook SessionStart applique la même règle : il ne pose
+`core.hooksPath` que si rien n'est en place, et se tait dès qu'un `pre-push`
+appelle `scripts/check.sh`. Validation en plus : `git status --porcelain` doit rester
 identique à avant le scaffold.
 
 ## Étape 1 — Détection de stack
@@ -289,7 +295,8 @@ ou un fichier `.tripwire-off` à la racine (par dépôt, ignoré par git) coupe 
 deux hooks Claude Code (Stop, SessionStart) et le hook SessionStart du plugin — silence total, rien
 désinstallé. Le pre-push git n'est pas concerné : il ne coûte aucun token et a
 son échappatoire (`--no-verify`). Ajouter `.tripwire-off` au `.gitignore` du
-projet au scaffold.
+projet au scaffold — **sauf en mode perso** : l'exclude le couvre déjà, et le
+`.gitignore` appartient à l'équipe.
 
 ## Étape 4 — Validation (OBLIGATOIRE avant de conclure)
 

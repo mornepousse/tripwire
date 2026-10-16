@@ -76,6 +76,8 @@ fingerprint() {
     git diff HEAD 2>/dev/null || git diff 2>/dev/null || true
     git ls-files -o --exclude-standard 2>/dev/null | LC_ALL=C sort \
       | git hash-object --stdin-paths 2>/dev/null || true
+    # Les fichiers tripwire comptent même exclus de git (mode perso).
+    for f in scripts/check.sh scripts/tripwire.d/*.sh COMPORTEMENTS.md .tripwire-divergences; do [ -f "$f" ] && git hash-object "$f" || true; done 2>/dev/null
   } | git hash-object --stdin 2>/dev/null || date +%s.%N
 }
 KEY="$MODE${SINGLE_VARIANT:+-$SINGLE_VARIANT}"
@@ -86,9 +88,6 @@ if [ "$FORCE" != "1" ] && [ -f "$STAMP" ] && [ "$(cat "$STAMP" 2>/dev/null)" = "
   ok "déjà vert (état inchangé depuis le dernier passage) — skip (--force pour relancer)"
   exit 0
 fi
-# TRIPWIRE_RED_ONCE=1 (Stop) : état = dernier rouge signalé -> rc 3, rien relancé.
-REDONCE="${TRIPWIRE_RED_ONCE:-0}"; RSTAMP="$GITDIR/tripwire/red-$KEY"
-[ "$REDONCE" = 1 ] && [ "$FORCE" != 1 ] && [ "$(cat "$RSTAMP" 2>/dev/null)" = "$FP" ] && exit 3
 
 T_START=$SECONDS
 
@@ -162,10 +161,9 @@ fi
 
 echo "========================================"
 if [ "$rc" -eq 0 ]; then
-  printf '%s\n' "$FP" > "$STAMP" 2>/dev/null || true; rm -f "$RSTAMP"
+  printf '%s\n' "$FP" > "$STAMP" 2>/dev/null || true
   ok "check.sh: tout vert"
 else
-  [ "$REDONCE" = "1" ] && { printf '%s\n' "$FP" > "$RSTAMP"; } 2>/dev/null
   fail "check.sh: ROUGE"
 fi
 # Historique des durées (jamais bloquant) — les skips sortent avant ce point.
